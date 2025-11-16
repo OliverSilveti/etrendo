@@ -1,0 +1,53 @@
+# ----------------------------------------
+# 1. Python Environment & Dependencies
+# ----------------------------------------
+.venv/
+venv/
+env/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# Dependency manager files
+pip-wheel-metadata/
+
+# ----------------------------------------
+# 2. Environment & Secrets
+# ----------------------------------------
+# Ignore local environment variables, but keep a template
+.env
+*.env.*.local
+
+# GCP credentials
+*.json
+!service-account-template.json
+
+# ----------------------------------------
+# 3. IDE & Editor Files
+# ----------------------------------------
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+
+# ----------------------------------------
+# 4. Notebooks & Output
+# ----------------------------------------
+.ipynb_checkpoints/
+
+# Ignore data files, but keep samples
+*.csv
+*.parquet
+!*-sample.csv
+
+# ----------------------------------------
+# 5. OS-specific files
+# ----------------------------------------
+.DS_Store
+Thumbs.db
