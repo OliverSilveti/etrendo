@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 import requests
 import pandas as pd
 from dotenv import load_dotenv
+from google.cloud import storage
 from serpapi import GoogleSearch
 
 # --- Configuration ---
@@ -152,6 +153,21 @@ def normalize_products_to_dataframe(pages: list, category_label: str) -> pd.Data
     return pd.DataFrame(products)
 
 
+def save_to_gcs(df: pd.DataFrame, bucket_name: str, destination_blob_name: str):
+    """Saves a DataFrame to a GCS bucket as a JSON file."""
+    if df.empty:
+        logging.warning("DataFrame is empty, skipping upload to GCS.")
+        return
+
+    storage_client = storage.Client()
+    bucket = storage_client.bucket(bucket_name)
+    blob = bucket.blob(destination_blob_name)
+
+    # Convert DataFrame to JSON string and upload
+    json_data = df.to_json(orient="records", indent=2, force_ascii=False)
+    blob.upload_from_string(json_data, content_type='application/json')
+    logging.info(f"Data saved to gs://{bucket_name}/{destination_blob_name}")
+
 def main(args):
     """
     Main function to orchestrate the fetching and processing of Amazon products.
@@ -200,16 +216,21 @@ def main(args):
     print("-" * 50)
     logging.info(f"Successfully normalized {len(df)} products into a DataFrame.")
 
-    # 3. Save the results
-    output_dir = args.output_dir
-    os.makedirs(output_dir, exist_ok=True)
+    # 3. Save the results to Google Cloud Storage
+    # Get bucket name from environment variable.
+    bucket_name = os.environ.get("GCS_BUCKET_NAME")
+    if not bucket_name:
+        logging.error("GCS_BUCKET_NAME environment variable not set. Cannot upload to GCS.")
+        sys.exit("GCS_BUCKET_NAME not set.")
+
+    category_label = CRAWL_CONFIG["category_label"]
+    node = CRAWL_CONFIG["node"]
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-    filename = f"{CRAWL_CONFIG['category_label']}_{timestamp}.json"
-    output_path = os.path.join(output_dir, filename)
-    
-    df.to_json(output_path, orient="records", indent=2, index=False, force_ascii=False)
-    logging.info(f"Data saved to {output_path}")
-    print(f"--- Script finished successfully. Output saved to {output_path} ---")
+    filename = f"{timestamp}.json"
+    destination_blob_name = f"{category_label}-{node}/{filename}"
+
+    save_to_gcs(df, bucket_name, destination_blob_name)
+    print(f"--- Script finished successfully. ---")
 
 
 if __name__ == "__main__":
