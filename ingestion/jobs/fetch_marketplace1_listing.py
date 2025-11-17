@@ -1,9 +1,13 @@
 import os
 import json
 import argparse
+import sys
+import time
+import random
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
+import requests
 import pandas as pd
 from dotenv import load_dotenv
 from serpapi import GoogleSearch
@@ -13,14 +17,9 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 
 # Load environment variables from .env file
 load_dotenv()
-
 SERPAPI_API_KEY = os.getenv("SERPAPI_API_KEY")
 if not SERPAPI_API_KEY:
     raise ValueError("SERPAPI_API_KEY not found in environment variables. Please check your .env file.")
-
-OXYLABS_USERNAME = os.getenv("OXYLABS_USERNAME")
-OXYLABS_PASSWORD = os.getenv("OXYLABS_PASSWORD")
-
 
 def fetch_all_product_pages(config: dict) -> list:
     """
@@ -32,53 +31,82 @@ def fetch_all_product_pages(config: dict) -> list:
     Returns:
         list: A list of all pages returned by the API.
     """
-    search_params = {
-        "api_key": SERPAPI_API_KEY, # From .env
-        "engine": config.get("engine", "amazon"),
-        "amazon_domain": config.get("amazon_domain"),
-        "search_term": config.get("search_term"),
-        "node": config.get("node"),
-        "sort": config.get("sort"),
-        "language": config.get("language"),
-        "delivery_zip": config.get("delivery_zip"),
-    }
-    # Use a proxy to avoid IP-based blocking, which is the likely cause of the error.
-    if OXYLABS_USERNAME and OXYLABS_PASSWORD:
-        proxy_url = f"http://{OXYLABS_USERNAME}:{OXYLABS_PASSWORD}@de.oxylabs.io:10000"
-        search_params["proxy"] = proxy_url
-        logging.info("Using Oxylabs proxy to route SerpAPI request.")
+    api_key = config.get("api_key")
+    if not api_key or api_key == "YOUR_SERPAPI_KEY":
+        sys.exit("❌ ERROR: You must set your SerpAPI key in the config.")
 
-    # Filter out any None values from the config
-    search_params = {k: v for k, v in search_params.items() if v is not None}
+    node = config.get("node")
+    if not node:
+        sys.exit("❌ ERROR: You must provide a category node ID in the config.")
 
-    logging.info(f"Constructed search parameters: {json.dumps(search_params, indent=2)}")
+    max_pages = config.get("max_pages")
+    hard_limit = 100
 
-    search = GoogleSearch(search_params)
+    # Determine the effective number of pages to fetch
+    if max_pages is None or max_pages <= 0 or max_pages > hard_limit:
+        if max_pages and max_pages > hard_limit:
+            logging.info(f"Capping request of {max_pages} pages to the hard limit of {hard_limit}.")
+        effective_max_pages = hard_limit
+    else:
+        effective_max_pages = max_pages
+
     all_pages = []
     page_num = 1
+    extracted_at = datetime.now(timezone.utc).isoformat()
+    total_products = 0
+
+    # Initial parameters for the first page
+    params = {
+        "engine": "amazon",
+        "amazon_domain": config["amazon_domain"],
+        "language": config["language"],
+        "delivery_zip": config["delivery_zip"],
+        "node": node,
+        "s": config["sort"], "page": 1, "api_key": api_key
+    }
+
+    search = GoogleSearch(params)
 
     while True:
-        logging.info(f"Fetching page {page_num} for node {config['node']}...")
+        logging.info(f"\n🌍 Fetching page {page_num}...")
         results = search.get_dict()
 
+        # On the first page, log the total number of pages available from the API
+        if page_num == 1 and "total_pages" in results.get("serpapi_pagination", {}):
+            total_pages = results["serpapi_pagination"]["total_pages"]
+            logging.info(f"ℹ️ API reports a total of {total_pages} pages available for this query.")
+
         if "error" in results:
-            logging.error(f"SerpAPI Error: {results['error']}")
-            break
+            sys.exit(f"❌ API Error: {results['error']}")
+
+        # add sponsorship flag + timestamp
+        for p in results.get("organic_results", []):
+            url_link = p.get("link", "")
+            p["is_sponsored"] = "sspa/click" in url_link
+            p["extracted_at"] = extracted_at
 
         all_pages.append(results)
+        num_found = len(results.get("organic_results", []))
+        total_products += num_found
+        logging.info(f"📦 Found {num_found} products on page {page_num}")
 
-        # Check for next page
+        if effective_max_pages and page_num >= effective_max_pages:
+            logging.info(f"⏹️ Reached page limit of {effective_max_pages}.")
+            break
+
+        # Check for and prepare the next page request
         if "next" not in results.get("serpapi_pagination", {}):
-            logging.info("No more pages to fetch. Reached the end.")
+            logging.info("✅ No more pages.")
             break
-
-        if page_num >= config["max_pages"]:
-            logging.info(f"Reached max_pages limit of {config['max_pages']}.")
-            break
-
-        # Prepare for the next iteration
+        
+        # Update the search object for the next page
         search.params_dict.update(results.get("serpapi_pagination", {}))
         page_num += 1
+
+        # Polite wait to avoid getting blocked
+        wait_time = random.uniform(1, 3)
+        logging.info(f"⏳ Waiting {wait_time:.1f}s before next page...")
+        time.sleep(wait_time)
 
     return all_pages
 
@@ -98,6 +126,7 @@ def normalize_products_to_dataframe(pages: list, category_label: str) -> pd.Data
     for page_index, page in enumerate(pages, start=1):
         organic_results = page.get("organic_results", [])
         for p in organic_results:
+            price_info = p.get("price")
             products.append({
                 "page_number": page_index,
                 "category_label": category_label,
@@ -105,12 +134,12 @@ def normalize_products_to_dataframe(pages: list, category_label: str) -> pd.Data
                 "position": p.get("position"),
                 "asin": p.get("asin"),
                 "title": p.get("title"),
-                "link": p.get("link"),
+                "link": p.get("link", "").replace(r"\/", "/"),
                 "rating": p.get("rating"),
                 "reviews": p.get("reviews"),
                 "bought_last_month": p.get("bought_last_month"),
-                "price_raw": p.get("price", {}).get("raw"),
-                "currency": p.get("price", {}).get("currency"),
+                "price_raw": price_info.get("raw") if isinstance(price_info, dict) else None,
+                "currency": price_info.get("currency") if isinstance(price_info, dict) else None,
                 "extracted_price": p.get("extracted_price"),
                 "delivery": p.get("delivery"),
                 "is_sponsored": p.get("is_sponsored", False),
@@ -131,9 +160,9 @@ def main(args):
 
     # --- Base Configuration (from notebook) ---
     CRAWL_CONFIG = {
+        "api_key": SERPAPI_API_KEY,
         "amazon_domain": "amazon.de",
         "language": "en_GB",
-        "search_term": "washing machine",
         "delivery_zip": "22085",
         "node": "16075991",
         "sort": "exact-aware-popularity-rank",
@@ -142,21 +171,16 @@ def main(args):
 
     # --- Override with Command-Line Arguments ---
     # This allows for flexible test runs, e.g., fetching only 1 page.
-    if args.max_pages:
-        CRAWL_CONFIG["max_pages"] = args.max_pages
-        logging.info(f"Overriding max_pages with command-line value: {args.max_pages}")
+    # A value of 0 means no limit.
+    CRAWL_CONFIG["max_pages"] = args.max_pages
+    if args.max_pages > 0:
+        logging.info(f"Limiting fetch to a maximum of {args.max_pages} pages.")
     else:
-        # Default to 100 if not specified
-        CRAWL_CONFIG["max_pages"] = 100
+        logging.info("Fetching all available pages (no page limit).")
 
     if args.node:
         CRAWL_CONFIG["node"] = args.node
         logging.info(f"Overriding node with command-line value: {args.node}")
-
-    if args.output_dir:
-        output_dir = args.output_dir
-    else:
-        output_dir = "output"
 
 
     # 1. Fetch data from SerpAPI
@@ -177,19 +201,20 @@ def main(args):
     logging.info(f"Successfully normalized {len(df)} products into a DataFrame.")
 
     # 3. Save the results
+    output_dir = args.output_dir
     os.makedirs(output_dir, exist_ok=True)
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"{CRAWL_CONFIG['category_label']}_{timestamp}.parquet"
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    filename = f"{CRAWL_CONFIG['category_label']}_{timestamp}.json"
     output_path = os.path.join(output_dir, filename)
     
-    df.to_parquet(output_path, index=False)
+    df.to_json(output_path, orient="records", indent=2, index=False, force_ascii=False)
     logging.info(f"Data saved to {output_path}")
     print(f"--- Script finished successfully. Output saved to {output_path} ---")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Fetch Amazon product data using SerpAPI.")
-    parser.add_argument("--max_pages", type=int, help="Maximum number of pages to fetch.")
+    parser.add_argument("--max_pages", type=int, default=0, help="Maximum number of pages to fetch. 0 means no limit (default: 0 to fetch all).")
     parser.add_argument("--node", type=str, help="Amazon category node to scrape.")
     parser.add_argument("--output_dir", type=str, default="output", help="Directory to save the output file.")
     
