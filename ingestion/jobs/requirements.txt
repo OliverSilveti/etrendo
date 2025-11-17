@@ -1,6 +1,0 @@
-pandas
-python-dotenv
-google-search-results
-requests
-pyarrow
-google-cloud-storage

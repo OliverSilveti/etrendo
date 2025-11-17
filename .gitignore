@@ -27,6 +27,7 @@ pip-wheel-metadata/
 # GCP credentials
 *.json
 !service-account-template.json
+secrets-to-remove.txt
 
 # ----------------------------------------
 # 3. IDE & Editor Files
