@@ -39,7 +39,7 @@ pip-wheel-metadata/
 # ----------------------------------------
 # 4. Notebooks & Output
 # ----------------------------------------
-.ipynb
+*.ipynb
 .ipynb_checkpoints/
 ColabOutput/
 
