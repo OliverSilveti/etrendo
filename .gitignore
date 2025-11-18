@@ -54,3 +54,4 @@ ColabOutput/
 # ----------------------------------------
 .DS_Store
 Thumbs.db
+terraform.tfvars

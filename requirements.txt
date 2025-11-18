@@ -1,6 +1,5 @@
+requests
+pandas
+python-dotenv
 google-cloud-storage
 google-search-results
-pandas
-pyarrow
-python-dotenv
-requests
