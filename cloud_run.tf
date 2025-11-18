@@ -13,14 +13,15 @@ resource "google_cloud_run_v2_job" "default" {
           name  = "GCS_BUCKET_NAME"
           value = var.gcs_bucket_name
         }
-        env {
-          name = "SERPAPI_API_KEY"
-          value_source {
-            secret_key_ref {
-              secret  = google_secret_manager_secret.serpapi_key.secret_id
-              version = "latest"
-            }
-          }
+        volume_mounts {
+          name = "serpapi-secret"
+          mount_path = "/etc/secrets"
+        }
+      }
+      volumes {
+        name = "serpapi-secret"
+        secret {
+          secret = google_secret_manager_secret.serpapi_key.secret_id
         }
       }
     }

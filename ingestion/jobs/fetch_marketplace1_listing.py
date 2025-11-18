@@ -9,18 +9,21 @@ from datetime import datetime, timezone
 
 import requests
 import pandas as pd
-from dotenv import load_dotenv
 from google.cloud import storage
 from serpapi import GoogleSearch
 
 # --- Configuration ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# Load environment variables from .env file
-load_dotenv()
-SERPAPI_API_KEY = os.getenv("SERPAPI_API_KEY")
+# Read the API key from the secret volume
+try:
+    with open("/etc/secrets/marketplace1-ingestion-serpapi-key", "r") as f:
+        SERPAPI_API_KEY = f.read().strip()
+except FileNotFoundError:
+    raise ValueError("SERPAPI_API_KEY secret not found. Please make sure it is mounted correctly.")
+
 if not SERPAPI_API_KEY:
-    raise ValueError("SERPAPI_API_KEY not found in environment variables. Please check your .env file.")
+    raise ValueError("SERPAPI_API_KEY is empty. Please check the secret value.")
 
 def fetch_all_product_pages(config: dict) -> list:
     """
@@ -172,7 +175,7 @@ def main(args):
     """
     Main function to orchestrate the fetching and processing of Amazon products.
     """
-    print("--- Starting script ---")
+    print("--- Script starting ---")
 
     # --- Base Configuration (from notebook) ---
     CRAWL_CONFIG = {
