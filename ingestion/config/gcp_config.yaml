@@ -1,0 +1,5 @@
+project_id: "project-2b6c9e78-b5ed-46bc-a2b"
+location: "europe-west1"
+
+ingestion:
+  gcs_bucket_name: "amazon-product-listing-raw"

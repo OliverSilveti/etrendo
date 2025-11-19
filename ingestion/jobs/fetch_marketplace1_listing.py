@@ -7,6 +7,7 @@ import random
 import logging
 from datetime import datetime, timezone
 
+import yaml
 import requests
 import pandas as pd
 from google.cloud import storage
@@ -15,15 +16,27 @@ from serpapi import GoogleSearch
 # --- Configuration ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
+# Load configuration from YAML files
+try:
+    with open("ingestion/config/gcp_config.yaml", "r") as f:
+        gcp_config = yaml.safe_load(f)
+    with open("ingestion/config/sources.yaml", "r") as f:
+        sources_config = yaml.safe_load(f)
+except FileNotFoundError as e:
+    raise ValueError(f"Configuration file not found: {e}")
+
 # Read the API key from the secret volume
 try:
     with open("/etc/secrets/marketplace1-ingestion-serpapi-key", "r") as f:
         SERPAPI_API_KEY = f.read().strip()
 except FileNotFoundError:
-    raise ValueError("SERPAPI_API_KEY secret not found. Please make sure it is mounted correctly.")
+    # Fallback for local development (optional, requires SERPAPI_API_KEY env var)
+    SERPAPI_API_KEY = os.environ.get("SERPAPI_API_KEY")
+    if not SERPAPI_API_KEY:
+        raise ValueError("SERPAPI_API_KEY secret not found. Please make sure it is mounted correctly or set the SERPAPI_API_KEY environment variable for local development.")
 
 if not SERPAPI_API_KEY:
-    raise ValueError("SERPAPI_API_KEY is empty. Please check the secret value.")
+    raise ValueError("SERPAPI_API_KEY is empty. Please check the secret value or environment variable.")
 
 def fetch_all_product_pages(config: dict) -> list:
     """
@@ -177,25 +190,26 @@ def main(args):
     """
     print("--- Script starting ---")
 
-    # --- Base Configuration (from notebook) ---
-    CRAWL_CONFIG = {
-        "api_key": SERPAPI_API_KEY,
-        "amazon_domain": "amazon.de",
-        "language": "en_GB",
-        "delivery_zip": "22085",
-        "node": "16075991",
-        "sort": "exact-aware-popularity-rank",
-        "category_label": "washing_machines",
-    }
+    # --- Get source configuration ---
+    source_name = args.source_name
+    source = next((s for s in sources_config["sources"] if s["name"] == source_name), None)
+    if not source:
+        sys.exit(f"❌ ERROR: Source '{source_name}' not found in sources.yaml")
+
+    if not source.get("enabled", True):
+        logging.warning(f"Source '{source_name}' is disabled. Exiting.")
+        return
+
+    CRAWL_CONFIG = source["parameters"]
+    CRAWL_CONFIG["api_key"] = SERPAPI_API_KEY
 
     # --- Override with Command-Line Arguments ---
-    # This allows for flexible test runs, e.g., fetching only 1 page.
-    # A value of 0 means no limit.
-    CRAWL_CONFIG["max_pages"] = args.max_pages
-    if args.max_pages > 0:
-        logging.info(f"Limiting fetch to a maximum of {args.max_pages} pages.")
-    else:
-        logging.info("Fetching all available pages (no page limit).")
+    if args.max_pages is not None:
+        CRAWL_CONFIG["max_pages"] = args.max_pages
+        if args.max_pages > 0:
+            logging.info(f"Limiting fetch to a maximum of {args.max_pages} pages.")
+        else:
+            logging.info("Fetching all available pages (no page limit).")
 
     if args.node:
         CRAWL_CONFIG["node"] = args.node
@@ -203,7 +217,7 @@ def main(args):
 
 
     # 1. Fetch data from SerpAPI
-    logging.info(f"Starting Amazon product fetch job for node '{CRAWL_CONFIG['node']}'...")
+    logging.info(f"Starting Amazon product fetch job for source '{source_name}' (node '{CRAWL_CONFIG['node']}') ...")
     raw_pages = fetch_all_product_pages(CRAWL_CONFIG)
 
     print(f"--- API Fetch Complete: Received {len(raw_pages)} page(s) of data. ---")
@@ -220,11 +234,10 @@ def main(args):
     logging.info(f"Successfully normalized {len(df)} products into a DataFrame.")
 
     # 3. Save the results to Google Cloud Storage
-    # Get bucket name from environment variable.
-    bucket_name = os.environ.get("GCS_BUCKET_NAME")
+    bucket_name = gcp_config.get("ingestion", {}).get("gcs_bucket_name")
     if not bucket_name:
-        logging.error("GCS_BUCKET_NAME environment variable not set. Cannot upload to GCS.")
-        sys.exit("GCS_BUCKET_NAME not set.")
+        logging.error("GCS bucket name not found in gcp_config.yaml. Cannot upload to GCS.")
+        sys.exit("GCS bucket name not set in config.")
 
     category_label = CRAWL_CONFIG["category_label"]
     node = CRAWL_CONFIG["node"]
@@ -238,9 +251,9 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Fetch Amazon product data using SerpAPI.")
-    parser.add_argument("--max_pages", type=int, default=0, help="Maximum number of pages to fetch. 0 means no limit (default: 0 to fetch all).")
-    parser.add_argument("--node", type=str, help="Amazon category node to scrape.")
-    parser.add_argument("--output_dir", type=str, default="output", help="Directory to save the output file.")
+    parser.add_argument("source_name", type=str, help="The name of the source to process from sources.yaml.")
+    parser.add_argument("--max_pages", type=int, help="Maximum number of pages to fetch. Overrides the source config. 0 means no limit.")
+    parser.add_argument("--node", type=str, help="Amazon category node to scrape. Overrides the source config.")
     
     args = parser.parse_args()
     main(args)

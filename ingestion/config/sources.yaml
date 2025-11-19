@@ -1,0 +1,12 @@
+sources:
+  - name: "amazon_de_washing_machines"
+    type: "amazon_serpapi"
+    enabled: true
+    parameters:
+      amazon_domain: "amazon.de"
+      language: "en_GB"
+      delivery_zip: "22085"
+      node: "16075991"
+      sort: "exact-aware-popularity-rank"
+      category_label: "washing_machines"
+      max_pages: 10

@@ -58,9 +58,9 @@ resource "google_artifact_registry_repository" "repo" {
 
 resource "null_resource" "docker_build_push" {
   triggers = {
-    job_script_hash = filemd5("${path.module}/ingestion/jobs/fetch_marketplace1_listing.py")
-    dockerfile_hash = filemd5("${path.module}/Dockerfile")
-    requirements_hash = filemd5("${path.module}/requirements.txt")
+    job_script_hash = filemd5("../../ingestion/jobs/fetch_marketplace1_listing.py")
+    dockerfile_hash = filemd5("../../Dockerfile")
+    requirements_hash = filemd5("../../requirements.txt")
   }
 
   provisioner "local-exec" {
