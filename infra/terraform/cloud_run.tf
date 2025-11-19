@@ -9,7 +9,7 @@ resource "google_cloud_run_v2_job" "default" {
     template {
       service_account = google_service_account.job_runner.email
       containers {
-        image = "us-central1-docker.pkg.dev/${local.project_id}/etrendo-repo/${var.service_name}:latest"
+        image = "${var.region}-docker.pkg.dev/${local.project_id}/etrendo-repo/${var.service_name}:latest"
         env {
           name  = "GCS_BUCKET_NAME"
           value = var.gcs_bucket_name

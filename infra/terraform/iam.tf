@@ -66,8 +66,8 @@ resource "null_resource" "docker_build_push" {
   provisioner "local-exec" {
     command = <<-EOT
       gcloud auth configure-docker ${var.region}-docker.pkg.dev
-      docker build -f ${path.module}/Dockerfile -t ${google_artifact_registry_repository.repo.location}-docker.pkg.dev/${local.project_id}/${google_artifact_registry_repository.repo.name}/${var.service_name}:latest .
-      docker push ${google_artifact_registry_repository.repo.location}-docker.pkg.dev/${local.project_id}/${google_artifact_registry_repository.repo.name}/${var.service_name}:latest
+      docker build -f ../../Dockerfile -t ${google_artifact_registry_repository.repo.location}-docker.pkg.dev/${local.project_id}/${google_artifact_registry_repository.repo.repository_id}/${var.service_name}:latest ../..
+      docker push ${google_artifact_registry_repository.repo.location}-docker.pkg.dev/${local.project_id}/${google_artifact_registry_repository.repo.repository_id}/${var.service_name}:latest
     EOT
     working_dir = "${path.module}"
   }
