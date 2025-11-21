@@ -1,4 +1,3 @@
-
 resource "google_cloud_run_v2_job" "default" {
   name     = var.service_name
   project  = local.project_id
@@ -8,21 +7,34 @@ resource "google_cloud_run_v2_job" "default" {
   template {
     template {
       service_account = google_service_account.job_runner.email
+
       containers {
         image = "${var.region}-docker.pkg.dev/${local.project_id}/etrendo-repo/${var.service_name}:latest"
+
+        # Pass the required argument to the Python module
+        args = ["marketplace1"]
+
         env {
           name  = "GCS_BUCKET_NAME"
           value = var.gcs_bucket_name
         }
+
         volume_mounts {
-          name = "serpapi-secret"
+          name       = "serpapi-secret"
           mount_path = "/etc/secrets"
         }
       }
+
       volumes {
         name = "serpapi-secret"
         secret {
           secret = google_secret_manager_secret.serpapi_key.secret_id
+
+          # 👇 This tells Cloud Run to mount the *existing* secret version
+          items {
+            version = "latest"
+            path    = "${var.service_name}-serpapi-key"
+          }
         }
       }
     }

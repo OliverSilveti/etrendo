@@ -15,11 +15,11 @@ variable "service_name" {
   default     = "marketplace1-ingestion"
 }
 
-variable "serpapi_api_key" {
-  description = "The SerpAPI API key."
-  type        = string
-  sensitive   = true
-}
+#variable "serpapi_api_key" {
+#  description = "The SerpAPI API key."
+#  type        = string
+#  sensitive   = true
+#}
 
 variable "gcs_bucket_name" {
   description = "The name of the GCS bucket."

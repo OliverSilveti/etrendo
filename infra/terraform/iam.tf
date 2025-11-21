@@ -7,7 +7,7 @@ resource "google_project_service" "services" {
     "storage.googleapis.com",
     "cloudbuild.googleapis.com"
   ])
-  service = each.key
+  service            = each.key
   disable_on_destroy = false
 }
 
@@ -26,11 +26,6 @@ resource "google_secret_manager_secret" "serpapi_key" {
   }
 }
 
-resource "google_secret_manager_secret_version" "serpapi_key_version" {
-  secret = google_secret_manager_secret.serpapi_key.id
-  secret_data = var.serpapi_api_key
-}
-
 resource "google_secret_manager_secret_iam_member" "secret_accessor" {
   project   = local.project_id
   secret_id = google_secret_manager_secret.serpapi_key.id
@@ -38,12 +33,14 @@ resource "google_secret_manager_secret_iam_member" "secret_accessor" {
   member    = "serviceAccount:${google_service_account.job_runner.email}"
 }
 
-data "google_storage_bucket" "default" {
-  name = var.gcs_bucket_name
-}
+# We no longer use a data source for the bucket; Terraform creates it via
+# resource "google_storage_bucket.bucket" in gcs.tf.
+# data "google_storage_bucket" "default" {
+#   name = var.gcs_bucket_name
+# }
 
 resource "google_storage_bucket_iam_member" "gcs_writer" {
-  bucket = data.google_storage_bucket.default.name
+  bucket = google_storage_bucket.bucket.name
   role   = "roles/storage.objectAdmin"
   member = "serviceAccount:${google_service_account.job_runner.email}"
 }
@@ -58,8 +55,8 @@ resource "google_artifact_registry_repository" "repo" {
 
 resource "null_resource" "docker_build_push" {
   triggers = {
-    job_script_hash = filemd5("../../ingestion/jobs/fetch_marketplace1_listing.py")
-    dockerfile_hash = filemd5("../../Dockerfile")
+    job_script_hash   = filemd5("../../ingestion/jobs/fetch_marketplace1_listing.py")
+    dockerfile_hash   = filemd5("../../Dockerfile")
     requirements_hash = filemd5("../../requirements.txt")
   }
 
