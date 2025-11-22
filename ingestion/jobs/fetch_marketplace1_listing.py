@@ -25,15 +25,31 @@ try:
 except FileNotFoundError as e:
     raise ValueError(f"Configuration file not found: {e}")
 
-# Read the API key from the secret volume
+# Read the API key
 try:
+    # First, try reading from the secret volume path (for cloud environments)
     with open("/etc/secrets/marketplace1-ingestion-serpapi-key", "r") as f:
         SERPAPI_API_KEY = f.read().strip()
+    logging.info("Successfully loaded API key from mounted secret.")
 except FileNotFoundError:
-    # Fallback for local development (optional, requires SERPAPI_API_KEY env var)
-    SERPAPI_API_KEY = os.environ.get("SERPAPI_API_KEY")
-    if not SERPAPI_API_KEY:
-        raise ValueError("SERPAPI_API_KEY secret not found. Please make sure it is mounted correctly or set the SERPAPI_API_KEY environment variable for local development.")
+    # If the file is not found, fall back to fetching from Google Secret Manager (for local development)
+    logging.info("Secret file not found. Falling back to Google Secret Manager.")
+    try:
+        from google.cloud import secretmanager
+        client = secretmanager.SecretManagerServiceClient()
+        project_id = gcp_config.get("project_id")
+        secret_name = "marketplace1-ingestion-serpapi-key"
+        
+        if not project_id:
+            raise ValueError("GCP 'project_id' not found in gcp_config.yaml.")
+            
+        secret_version_path = client.secret_version_path(project_id, secret_name, "latest")
+        response = client.access_secret_version(request={"name": secret_version_path})
+        SERPAPI_API_KEY = response.payload.data.decode("UTF-8").strip()
+        logging.info("Successfully loaded API key from Google Secret Manager.")
+    except Exception as e:
+        raise ValueError(f"Failed to fetch secret from Google Secret Manager. Please ensure you are authenticated (`gcloud auth application-default login`) and have permissions. Error: {e}")
+
 
 if not SERPAPI_API_KEY:
     raise ValueError("SERPAPI_API_KEY is empty. Please check the secret value or environment variable.")

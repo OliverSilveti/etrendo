@@ -1,5 +1,5 @@
 sources:
-  - name: "amazon_de_washing_machines"
+  - name: "marketplace1"
     type: "amazon_serpapi"
     enabled: true
     parameters:

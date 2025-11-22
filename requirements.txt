@@ -4,3 +4,4 @@ python-dotenv
 google-cloud-storage
 google-search-results
 PyYAML
+google-cloud-secret-manager

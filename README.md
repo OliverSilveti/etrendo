@@ -15,6 +15,9 @@ Make sure you have the following tools installed on your local machine:
 - [Node.js](https://nodejs.org/en/download/) (for the frontend, optional for now)
 - [gcloud CLI](https://cloud.google.com/sdk/docs/install)
 - [Terraform](https://learn.hashicorp.com/tutorials/terraform/install-cli)
+ - [Terraform](https://learn.hashicorp.com/tutorials/terraform/install-cli) (v1.0+ recommended)
+
+    Note: This project uses Terraform to provision GCP resources under `infra/terraform` (Cloud Run job, Cloud Scheduler, GCS, Secret Manager, Artifact Registry). See `infra/terraform/README.md` for detailed install and safe-run instructions.
 
 ### Installation
 
@@ -58,6 +61,15 @@ Each service can be run individually. Refer to the `README.md` file in each serv
 -   `context_api`: The API for fetching context from BigQuery.
 -   `ingestion`: The data ingestion jobs.
 -   `infra/terraform`: The infrastructure as code.
+
+## Deploying (Terraform / GCP)
+
+Quick workflow for bringing the Cloud Run ingestion job live (MVP path):
+
+- Ensure you have `gcloud` authenticated locally (Application Default Credentials) and Docker installed if you plan to build the container locally.
+- See `infra/terraform/README.md` for an explicit, copy-pasteable sequence that covers importing an existing bucket, preparing Secret Manager, building/pushing the container, applying Terraform, and verifying the job.
+
+If you prefer, run the infra steps from CI with a dedicated service account and remote Terraform state (recommended once the MVP is stable).
 
 ## Project Structure
 

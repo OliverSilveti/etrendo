@@ -1,0 +1,5 @@
+PyYAML
+requests
+pandas
+google-cloud-storage
+google-search-results

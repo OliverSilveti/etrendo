@@ -4,4 +4,8 @@ resource "google_storage_bucket" "bucket" {
   force_destroy = true
   storage_class = "STANDARD"
   uniform_bucket_level_access = true
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }

@@ -58,6 +58,7 @@ resource "null_resource" "docker_build_push" {
     job_script_hash   = filemd5("../../ingestion/jobs/fetch_marketplace1_listing.py")
     dockerfile_hash   = filemd5("../../Dockerfile")
     requirements_hash = filemd5("../../requirements.txt")
+    sources_hash      = filemd5("../../ingestion/config/sources.yaml")
   }
 
   provisioner "local-exec" {
