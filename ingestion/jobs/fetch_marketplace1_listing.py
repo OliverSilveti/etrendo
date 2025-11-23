@@ -196,7 +196,10 @@ def save_to_gcs(df: pd.DataFrame, bucket_name: str, destination_blob_name: str):
     blob = bucket.blob(destination_blob_name)
 
     # Convert DataFrame to JSON string and upload
-    json_data = df.to_json(orient="records", indent=2, force_ascii=False)
+    json_data = df.to_json(orient="records", 
+                           #indent=2,
+                           lines=True,
+                           force_ascii=False)
     blob.upload_from_string(json_data, content_type='application/json')
     logging.info(f"Data saved to gs://{bucket_name}/{destination_blob_name}")
 
