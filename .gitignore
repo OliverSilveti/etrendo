@@ -64,3 +64,12 @@ terraform.tfstate
 terraform.tfstate.*
 *.tfstate
 *.tfstate.*
+# ----------------------------------------
+# 6. Ingestion Configurations
+# ----------------------------------------
+
+# Ignore configuration files that might contain secrets
+/ingestion/config/
+
+# Instead, you can commit a template file
+!/ingestion/config/sources.yaml.template
