@@ -28,6 +28,7 @@ pip-wheel-metadata/
 *.json
 !service-account-template.json
 secrets-to-remove.txt
+/local_secrets/
 
 # ----------------------------------------
 # 3. IDE & Editor Files
