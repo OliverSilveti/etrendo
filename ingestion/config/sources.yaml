@@ -10,3 +10,10 @@ sources:
       sort: "exact-aware-popularity-rank"
       category_label: "washing_machines"
       max_pages: 10
+  - name: "marketplace2"
+    type: "web_scraper"
+    enabled: true
+    parameters:
+      category_url: "https://www.otto.de/haushalt/waschmaschinen/frontlader/"
+      user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+      category_label: "marketplace2_washing_machines"
