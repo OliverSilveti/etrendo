@@ -73,4 +73,4 @@ terraform.tfstate.*
 /ingestion/config/
 
 # Instead, you can commit a template file
-!/ingestion/config/sources.yaml.template
+!/ingestion/config/sources.yaml.templatelocal_output/*.jsonl
