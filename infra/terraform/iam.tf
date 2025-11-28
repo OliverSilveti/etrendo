@@ -67,8 +67,8 @@ resource "google_artifact_registry_repository" "repo" {
 
 resource "null_resource" "docker_build_push" {
   triggers = {
-    job_script_hash   = filemd5("../../ingestion/jobs/fetch_marketplace1_listing.py")
-    dockerfile_hash   = filemd5("../../Dockerfile")
+    job_script_hash   = filemd5("../../ingestion/marketplace1/fetch_marketplace1_listing.py")
+    dockerfile_hash   = filemd5("../../ingestion/marketplace1/Dockerfile")
     requirements_hash = filemd5("../../requirements.txt")
     sources_hash      = filemd5("../../ingestion/config/sources.yaml")
   }
@@ -76,8 +76,11 @@ resource "null_resource" "docker_build_push" {
   provisioner "local-exec" {
     command = <<-EOT
       gcloud auth configure-docker ${var.region}-docker.pkg.dev
-      docker build -f ../../Dockerfile -t ${google_artifact_registry_repository.repo.location}-docker.pkg.dev/${local.project_id}/${google_artifact_registry_repository.repo.repository_id}/${var.service_name}:latest ../..
-      docker push ${google_artifact_registry_repository.repo.location}-docker.pkg.dev/${local.project_id}/${google_artifact_registry_repository.repo.repository_id}/${var.service_name}:latest
+      docker buildx build \
+        --platform linux/amd64 \
+        -f ../../ingestion/marketplace1/Dockerfile \
+        -t ${google_artifact_registry_repository.repo.location}-docker.pkg.dev/${local.project_id}/${google_artifact_registry_repository.repo.repository_id}/${var.service_name}:latest \
+        --push ../..
     EOT
     working_dir = "${path.module}"
   }
