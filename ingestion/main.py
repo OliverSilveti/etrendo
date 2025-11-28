@@ -17,16 +17,27 @@ def main():
     # Add project root to path for absolute imports
     sys.path.append(str(Path.cwd()))
 
-    try:
-        job_module = importlib.import_module(f"ingestion.jobs.{job_name}")
+    module_candidates = [f"ingestion.jobs.{job_name}"]
+    # Fallback for jobs that have been relocated to dedicated packages.
+    if job_name == "fetch_marketplace2_listing":
+        module_candidates.append("ingestion.marketplace2.fetch_marketplace2_listing")
 
+    job_module = None
+    for module_path in module_candidates:
+        try:
+            job_module = importlib.import_module(module_path)
+            break
+        except ImportError:
+            continue
+
+    if not job_module:
+        print(f"Error: Could not find job '{job_name}'. Make sure there is a '{job_name}.py' in 'ingestion/jobs/' or an alias configured.")
+        sys.exit(1)
+
+    try:
         # The job module's main function is responsible for its own argument parsing
         # We pass the remaining arguments to it
         job_module.main(remaining_argv)
-
-    except ImportError:
-        print(f"Error: Could not find job '{job_name}'. Make sure there is a '{job_name}.py' in 'ingestion/jobs/'.")
-        sys.exit(1)
     except Exception as e:
         print(f"An error occurred while running job '{job_name}': {e}")
         sys.exit(1)

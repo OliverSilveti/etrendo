@@ -8,5 +8,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the ingestion package (includes configs and marketplace2 job).
 COPY ingestion ./ingestion
 
-# Default entrypoint mirrors marketplace1 pattern; Cloud Run args supply the source name.
-ENTRYPOINT [ "python", "-m", "ingestion.jobs.fetch_marketplace2_listing" ]
+# Default entrypoint now targets the isolated marketplace2 package directly.
+ENTRYPOINT [ "python", "-m", "ingestion.marketplace2.fetch_marketplace2_listing" ]
