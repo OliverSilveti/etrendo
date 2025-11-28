@@ -18,4 +18,4 @@ COPY ingestion ./ingestion
 # Define the command to run your script.
 # We use '-m' to run the script as a module, which is good practice.
 # The arguments for the script will be passed by the Cloud Run Job.
-ENTRYPOINT [ "python", "-m", "ingestion.jobs.fetch_marketplace1_listing" ]
+ENTRYPOINT [ "python", "-m", "ingestion.marketplace1.fetch_marketplace1_listing" ]

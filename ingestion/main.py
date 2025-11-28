@@ -21,6 +21,8 @@ def main():
     # Fallback for jobs that have been relocated to dedicated packages.
     if job_name == "fetch_marketplace2_listing":
         module_candidates.append("ingestion.marketplace2.fetch_marketplace2_listing")
+    if job_name == "fetch_marketplace1_listing":
+        module_candidates.append("ingestion.marketplace1.fetch_marketplace1_listing")
 
     job_module = None
     for module_path in module_candidates:

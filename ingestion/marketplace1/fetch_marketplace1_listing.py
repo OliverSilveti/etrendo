@@ -269,11 +269,24 @@ def main(args):
     print(f"--- Script finished successfully. ---")
 
 
-if __name__ == "__main__":
+def build_parser() -> argparse.ArgumentParser:
+    """Build CLI parser so it can be reused by wrapper entrypoints."""
     parser = argparse.ArgumentParser(description="Fetch Amazon product data using SerpAPI.")
     parser.add_argument("source_name", type=str, help="The name of the source to process from sources.yaml.")
     parser.add_argument("--max_pages", type=int, help="Maximum number of pages to fetch. Overrides the source config. 0 means no limit.")
     parser.add_argument("--node", type=str, help="Amazon category node to scrape. Overrides the source config.")
-    
-    args = parser.parse_args()
+    return parser
+
+
+def run(argv=None):
+    """Parse CLI args (including when invoked via a wrapper) and execute."""
+    if isinstance(argv, argparse.Namespace):
+        args = argv
+    else:
+        parser = build_parser()
+        args = parser.parse_args(argv)
     main(args)
+
+
+if __name__ == "__main__":
+    run()

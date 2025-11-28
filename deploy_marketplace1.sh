@@ -19,12 +19,14 @@ echo "=============================================="
 echo " Building and pushing image for Cloud Run Job "
 echo "----------------------------------------------"
 echo " Image: ${IMAGE}"
+echo " Dockerfile: ingestion/marketplace1/Dockerfile"
 echo " Platform: linux/amd64 (required by Cloud Run)"
 echo "=============================================="
 
 # Build for amd64 and push directly to Artifact Registry
 docker buildx build \
   --platform linux/amd64 \
+  -f ingestion/marketplace1/Dockerfile \
   -t "${IMAGE}" \
   --push .
 
