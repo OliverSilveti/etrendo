@@ -253,10 +253,11 @@ def main(args):
     logging.info(f"Successfully normalized {len(df)} products into a DataFrame.")
 
     # 3. Save the results to Google Cloud Storage
-    bucket_name = gcp_config.get("ingestion", {}).get("gcs_bucket_name")
+    # Prefer per-source bucket (no fallback to avoid cross-job collisions)
+    bucket_name = CRAWL_CONFIG.get("gcs_bucket_name")
     if not bucket_name:
-        logging.error("GCS bucket name not found in gcp_config.yaml. Cannot upload to GCS.")
-        sys.exit("GCS bucket name not set in config.")
+        logging.error("GCS bucket name not found in source parameters. Cannot upload to GCS.")
+        sys.exit("GCS bucket name not set in source config.")
 
     category_label = CRAWL_CONFIG["category_label"]
     node = CRAWL_CONFIG["node"]

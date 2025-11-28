@@ -421,16 +421,9 @@ def main(args):
     logging.info(f"Successfully normalized {len(df)} products.")
     print(df.head())
 
-    # Original GCS-only flow retained for reference:
+    # Original GCS-only flow retained for reference (used to rely on gcp_config default bucket):
     # bucket_name = gcp_config.get("ingestion", {}).get("gcs_bucket_name")
-    # if not bucket_name:
-    #     logging.error("GCS bucket name not found in gcp_config.yaml. Cannot upload to GCS.")
-    #     sys.exit("GCS bucket name not set in config.")
-    # category_label = CRAWL_CONFIG["category_label"]
-    # timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-    # filename = f"{timestamp}.jsonl"
-    # destination_blob_name = f"{category_label}/{filename}"
-    # save_to_gcs(df, bucket_name, destination_blob_name)
+    # ...
 
     # 4. Save results
     category_label = CRAWL_CONFIG["category_label"]
@@ -444,10 +437,10 @@ def main(args):
         df.to_json(local_path, orient="records", lines=True, force_ascii=False)
         logging.info(f"Data saved locally to {local_path}")
     else:
-        bucket_name = gcp_config.get("ingestion", {}).get("gcs_bucket_name")
+        bucket_name = CRAWL_CONFIG.get("gcs_bucket_name")
         if not bucket_name:
-            logging.error("GCS bucket name not found in gcp_config.yaml. Cannot upload to GCS.")
-            sys.exit("GCS bucket name not set in config.")
+            logging.error("GCS bucket name not found in source parameters. Cannot upload to GCS.")
+            sys.exit("GCS bucket name not set in source config.")
 
         destination_blob_name = f"{category_label}/{timestamp}.jsonl"
         save_to_gcs(df, bucket_name, destination_blob_name)
