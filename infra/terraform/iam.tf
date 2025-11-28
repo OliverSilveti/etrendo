@@ -17,6 +17,12 @@ resource "google_service_account" "job_runner" {
   display_name = "Service Account for Marketplace1 Ingestion Job"
 }
 
+resource "google_service_account" "job_runner_marketplace2" {
+  account_id   = "${var.service_name_marketplace2}-sa"
+  project      = local.project_id
+  display_name = "Service Account for Marketplace2 Ingestion Job"
+}
+
 resource "google_secret_manager_secret" "serpapi_key" {
   secret_id = "${var.service_name}-serpapi-key"
   project   = local.project_id
@@ -43,6 +49,12 @@ resource "google_storage_bucket_iam_member" "gcs_writer" {
   bucket = google_storage_bucket.bucket.name
   role   = "roles/storage.objectAdmin"
   member = "serviceAccount:${google_service_account.job_runner.email}"
+}
+
+resource "google_storage_bucket_iam_member" "gcs_writer_marketplace2" {
+  bucket = var.gcs_bucket_marketplace2
+  role   = "roles/storage.objectAdmin"
+  member = "serviceAccount:${google_service_account.job_runner_marketplace2.email}"
 }
 
 resource "google_artifact_registry_repository" "repo" {

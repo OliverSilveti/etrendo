@@ -17,5 +17,5 @@ sources:
     parameters:
       category_url: "https://www.otto.de/haushalt/waschmaschinen/frontlader/"
       user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-      category_label: "marketplace2_washing_machines"
+      category_label: "washing_machines"
       gcs_bucket_name: "otto-product-listing-raw-etrendo-prd"
