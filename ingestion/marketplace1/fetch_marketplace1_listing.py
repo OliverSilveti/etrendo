@@ -6,6 +6,7 @@ import time
 import random
 import logging
 from datetime import datetime, timezone
+from urllib.parse import urlparse, parse_qs
 
 import yaml
 import requests
@@ -95,7 +96,9 @@ def fetch_all_product_pages(config: dict) -> list:
         "language": config["language"],
         "delivery_zip": config["delivery_zip"],
         "node": node,
-        "s": config["sort"], "page": 1, "api_key": api_key
+        "s": config["sort"],
+        "page": 1,
+        "api_key": api_key
     }
 
     search = GoogleSearch(params)
@@ -131,10 +134,23 @@ def fetch_all_product_pages(config: dict) -> list:
         if "next" not in results.get("serpapi_pagination", {}):
             logging.info("✅ No more pages.")
             break
-        
-        # Update the search object for the next page
-        search.params_dict.update(results.get("serpapi_pagination", {}))
-        page_num += 1
+        pagination = results["serpapi_pagination"]
+
+        # Follow SerpAPI's next URL to capture all required params (e.g., rh filters)
+        next_url = pagination["next"]
+        next_qs = parse_qs(urlparse(next_url).query)
+        # Flatten single-value lists
+        next_params = {k: v[0] if isinstance(v, list) and len(v) == 1 else v for k, v in next_qs.items()}
+
+        # Update the search params for the next call
+        search.params_dict.update(next_params)
+
+        # Keep our page counter in sync with what SerpAPI says
+        try:
+            page_num = int(next_params.get("page", page_num + 1))
+        except ValueError:
+            page_num += 1
+        search.params_dict["page"] = page_num
 
         # Polite wait to avoid getting blocked
         wait_time = random.uniform(1, 3)
