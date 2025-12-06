@@ -2,6 +2,7 @@ requests
 pandas
 python-dotenv
 google-cloud-storage
+google-cloud-bigquery
 google-search-results
 PyYAML
 google-cloud-secret-manager
