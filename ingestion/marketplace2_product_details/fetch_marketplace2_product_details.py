@@ -10,6 +10,7 @@ from typing import Dict, Iterable, List, Optional
 
 import pandas as pd
 import requests
+import urllib.parse
 import yaml
 from google.cloud import bigquery, secretmanager, storage
 
@@ -69,18 +70,29 @@ def read_input_from_bigquery(table: str, column: str, where: Optional[str], max_
     return [row.val for row in rows if row.val]
 
 
-def call_axesso(endpoint: str, api_key: str, item: str, request_param: str, static_params: Dict[str, str]) -> Dict:
-    """Call Axesso API for a single item and return the parsed JSON."""
-    params = dict(static_params)
-    params[request_param] = item
-    params["api_key"] = api_key
+def _encode_otto_url(url: str) -> str:
+    """Encode Otto URL in the format Axesso expects: scheme intact, path encoded."""
+    scheme, rest = url.split("://", 1)
+    encoded_rest = urllib.parse.quote(rest, safe="=")
+    return f"{scheme}:%2F%2F{encoded_rest}"
+
+
+def call_axesso(endpoint: str, api_key: str, item: str) -> Dict:
+    """Call Axesso Otto API for a single URL and return the parsed JSON."""
+    encoded_url = _encode_otto_url(item)
+    headers = {"axesso-api-key": api_key, "Cache-Control": "no-cache"}
     try:
-        resp = requests.get(endpoint, params=params, timeout=30)
+        # Build the final URL manually to avoid double-encoding by requests
+        request_url = f"{endpoint}?url={encoded_url}"
+        resp = requests.get(request_url, headers=headers, timeout=30)
         resp.raise_for_status()
         return resp.json()
     except Exception as e:
         logging.error("Axesso call failed for %s: %s", item, e)
-        return {"error": str(e), "status_code": getattr(e, "response", None).status_code if hasattr(e, "response") else None}
+        status_code = None
+        if hasattr(e, "response") and e.response is not None:
+            status_code = e.response.status_code
+        return {"error": str(e), "status_code": status_code}
 
 
 def normalize_records(raw_records: Iterable[Dict], input_items: Iterable[str], category_label: str) -> pd.DataFrame:
@@ -137,8 +149,6 @@ def main(argv=None):
     endpoint = cfg.get("axesso_endpoint")
     if not endpoint:
         sys.exit("❌ axesso_endpoint missing in source parameters.")
-    request_param = cfg.get("request_param", "url")
-    static_params = cfg.get("static_params", {}) or {}
     category_label = cfg.get("category_label", args.source_name)
     secret_name = cfg.get("axesso_secret_name", "marketplace2-details-axesso-key")
     api_key = load_axesso_api_key(secret_name)
@@ -161,7 +171,7 @@ def main(argv=None):
     logging.info("Processing %d items via Axesso.", len(inputs))
     payloads: List[Dict] = []
     for idx, item in enumerate(inputs, start=1):
-        payloads.append(call_axesso(endpoint, api_key, item, request_param, static_params))
+        payloads.append(call_axesso(endpoint, api_key, item))
         if idx % 10 == 0:
             logging.info("Processed %d/%d items.", idx, len(inputs))
         time.sleep(random.uniform(0.5, 1.5))

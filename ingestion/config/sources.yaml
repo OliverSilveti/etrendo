@@ -57,10 +57,7 @@ sources:
     type: "axesso_api"
     enabled: true
     parameters:
-      axesso_endpoint: "https://api.axesso.de/amz/amazon-lookup-product"
-      request_param: "url"
-      static_params:
-        domain: "de"
+      axesso_endpoint: "https://api.axesso.de/ott/otto-lookup-product"
       category_label: "marketplace2_product_details"
       gcs_bucket_name: "otto-product-listing-raw-etrendo-prd"
       axesso_secret_name: "marketplace2-details-axesso-key"
