@@ -45,11 +45,11 @@ sources:
       user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
       category_label: "washing_machines"
       gcs_bucket_name: "otto-product-listing-raw-etrendo-prd"
-  - name: "marketplace2"
+  - name: "marketplace2_coffee_machines"
     type: "web_scraper"
     enabled: true
     parameters:
-      category_url: "https://www.https://www.otto.de/haushalt/kaffeemaschinen/"
+      category_url: "https://www.otto.de/haushalt/kaffeemaschinen/"
       user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
       category_label: "coffee_machines"
       gcs_bucket_name: "otto-product-listing-raw-etrendo-prd"
