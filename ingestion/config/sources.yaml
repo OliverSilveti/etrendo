@@ -36,6 +36,19 @@ sources:
       category_label: "blenders_mixers"
       max_pages: 100
       gcs_bucket_name: "amazon-product-listing-raw-etrendo-prd"
+  - name: "marketplace1_price_listing"
+    type: "oxylabs_amazon_pricing"
+    enabled: true
+    parameters:
+      domain: "de"
+      source: "amazon_pricing"
+      category_label: "marketplace1_price_listing"
+      gcs_bucket_name: "amazon-pricing-listing-raw-etrendo-prd"
+      oxylabs_username_secret_name: "marketplace1-price-oxylabs-username"
+      oxylabs_password_secret_name: "marketplace1-price-oxylabs-password"
+      endpoint: "https://realtime.oxylabs.io/v1/queries"
+      throttle_min_seconds: 0.05
+      throttle_max_seconds: 0.2
 ###### Otto ######
   - name: "marketplace2"
     type: "web_scraper"
