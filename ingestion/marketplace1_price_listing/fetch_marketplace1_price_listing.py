@@ -67,10 +67,11 @@ def read_input_from_file(path: str, max_items: Optional[int] = None) -> List[str
     return lines
 
 
-def read_input_from_bigquery(table: str, column: str, where: Optional[str], max_items: Optional[int]) -> List[str]:
-    """Read values from a BigQuery table/column with optional WHERE and limit."""
+def read_input_from_bigquery(table: str, column: str, where: Optional[str], max_items: Optional[int], distinct: bool = False) -> List[str]:
+    """Read values from a BigQuery table/column with optional DISTINCT, WHERE, and limit."""
     client = bigquery.Client()
-    sql = f"SELECT {column} AS val FROM `{table}`"
+    select_kw = "DISTINCT" if distinct else ""
+    sql = f"SELECT {select_kw} {column} AS val FROM `{table}`".replace("  ", " ")
     if where:
         sql += f" WHERE {where}"
     if max_items:
@@ -200,6 +201,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--bq-table", type=str, help="BigQuery table in project.dataset.table format.")
     parser.add_argument("--bq-column", type=str, default="asin", help="Column name to read from BigQuery.")
     parser.add_argument("--bq-where", type=str, help="Optional WHERE clause (without 'WHERE').")
+    parser.add_argument("--bq-distinct", action="store_true", help="Deduplicate values from BigQuery using DISTINCT.")
     parser.add_argument("--max-items", type=int, help="Optional cap on items to process.")
     parser.add_argument("--no-upload", action="store_true", help="Save locally instead of GCS.")
     parser.add_argument("--local-dir", type=str, default="local_output", help="Local output directory when --no-upload is set.")
@@ -248,7 +250,7 @@ def main(argv=None):
         else:
             inputs = read_input_from_file(args.input_file, args.max_items)
     elif args.bq_table:
-        inputs = read_input_from_bigquery(args.bq_table, args.bq_column, args.bq_where, args.max_items)
+        inputs = read_input_from_bigquery(args.bq_table, args.bq_column, args.bq_where, args.max_items, distinct=args.bq_distinct)
 
     if not inputs:
         logging.warning("No inputs to process. Exiting.")
