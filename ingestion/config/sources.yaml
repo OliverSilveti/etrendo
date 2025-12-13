@@ -1,41 +1,5 @@
 sources:
 ###### Amazon SERPAPI ######
-  - name: "marketplace1"
-    type: "amazon_serpapi"
-    enabled: true
-    parameters:
-      amazon_domain: "amazon.de"
-      language: "en_GB"
-      delivery_zip: "22085"
-      node: "16075991"
-      sort: "exact-aware-popularity-rank"
-      category_label: "washing_machines"
-      max_pages: 100
-      gcs_bucket_name: "amazon-product-listing-raw-etrendo-prd"
-  - name: "marketplace1_coffee_machines"
-    type: "amazon_serpapi"
-    enabled: true
-    parameters:
-      amazon_domain: "amazon.de"
-      language: "en_GB"
-      delivery_zip: "22085"
-      node: "13528250031"
-      sort: "exact-aware-popularity-rank"
-      category_label: "coffee_machines"
-      max_pages: 100
-      gcs_bucket_name: "amazon-product-listing-raw-etrendo-prd"
-  - name: "marketplace1_blenders_mixers"
-    type: "amazon_serpapi"
-    enabled: true
-    parameters:
-      amazon_domain: "amazon.de"
-      language: "en_GB"
-      delivery_zip: "22085"
-      node: "3169561"
-      sort: "exact-aware-popularity-rank"
-      category_label: "blenders_mixers"
-      max_pages: 100
-      gcs_bucket_name: "amazon-product-listing-raw-etrendo-prd"
   - name: "marketplace1_price_listing"
     type: "oxylabs_amazon_pricing"
     enabled: true
@@ -49,6 +13,42 @@ sources:
       endpoint: "https://realtime.oxylabs.io/v1/queries"
       throttle_min_seconds: 0.05
       throttle_max_seconds: 0.2
+  - name: "marketplace1_product_listing"
+    type: "amazon_serpapi"
+    enabled: true
+    parameters:
+      amazon_domain: "amazon.de"
+      language: "en_GB"
+      delivery_zip: "22085"
+      node: "16075991"
+      sort: "exact-aware-popularity-rank"
+      category_label: "washing_machines"
+      max_pages: 100
+      gcs_bucket_name: "amazon-product-listing-raw-etrendo-prd"
+  - name: "marketplace1_product_listing_coffee_machines"
+    type: "amazon_serpapi"
+    enabled: true
+    parameters:
+      amazon_domain: "amazon.de"
+      language: "en_GB"
+      delivery_zip: "22085"
+      node: "13528250031"
+      sort: "exact-aware-popularity-rank"
+      category_label: "coffee_machines"
+      max_pages: 100
+      gcs_bucket_name: "amazon-product-listing-raw-etrendo-prd"
+  - name: "marketplace1_product_listing_blenders_mixers"
+    type: "amazon_serpapi"
+    enabled: true
+    parameters:
+      amazon_domain: "amazon.de"
+      language: "en_GB"
+      delivery_zip: "22085"
+      node: "3169561"
+      sort: "exact-aware-popularity-rank"
+      category_label: "blenders_mixers"
+      max_pages: 100
+      gcs_bucket_name: "amazon-product-listing-raw-etrendo-prd"
 ###### Otto ######
   - name: "marketplace2"
     type: "web_scraper"
