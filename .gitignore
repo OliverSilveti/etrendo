@@ -77,3 +77,6 @@ terraform.tfstate.*
 
 # Local output artifacts
 local_output/*.jsonl
+
+# Misc local files
+coffee_urls.txt
