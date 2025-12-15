@@ -149,6 +149,8 @@ def fetch_product_urls(config: dict) -> list:
 
     all_products = []
     page1 = extract_products_from_soup(soup, category_url)
+    for p in page1:
+        p["page_number"] = 1
     logging.info(f"Page 1 products found: {len(page1)}")
     all_products.extend(page1)
 
@@ -165,6 +167,8 @@ def fetch_product_urls(config: dict) -> list:
                 logging.warning(f"Skipping page {page_idx} due to fetch error.")
                 break
             page_products = extract_products_from_soup(page_soup, category_url)
+            for p in page_products:
+                p["page_number"] = page_idx
             logging.info(f"Page {page_idx} products found: {len(page_products)}")
             all_products.extend(page_products)
             time.sleep(random.uniform(1, 3))
@@ -397,6 +401,7 @@ def main(args):
             "title": entry["title"],
             "price_raw": None,
             "link": entry["link"],
+            "page_number": entry.get("page_number"),
             "extracted_at": datetime.now(timezone.utc).isoformat(),
         }
         all_products.append(product_data)
