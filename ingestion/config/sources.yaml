@@ -6,13 +6,15 @@ sources:
     parameters:
       domain: "de"
       source: "amazon_pricing"
-      category_label: "marketplace1_price_listing"
+      category_label: "coffee_machines"
+      node: "13528250031"
       gcs_bucket_name: "amazon-pricing-listing-raw-etrendo-prd"
       oxylabs_username_secret_name: "marketplace1-price-oxylabs-username"
       oxylabs_password_secret_name: "marketplace1-price-oxylabs-password"
       endpoint: "https://realtime.oxylabs.io/v1/queries"
       throttle_min_seconds: 0.05
       throttle_max_seconds: 0.2
+      max_workers: 8
   - name: "marketplace1_product_listing"
     type: "amazon_serpapi"
     enabled: true
@@ -63,6 +65,7 @@ sources:
       oxylabs_endpoint: "https://realtime.oxylabs.io/v1/queries"
       throttle_min_seconds: 0.3
       throttle_max_seconds: 0.8
+      max_workers: 6
 ###### Otto ######
   - name: "marketplace2_product_details"
     type: "axesso_api"

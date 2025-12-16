@@ -4,6 +4,7 @@ import logging
 import random
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -147,9 +148,9 @@ def flatten_pricing(content: Dict, category_label: str, extracted_at: str, node_
         return pd.DataFrame()
 
     rows = []
-    for offer in content.get("pricing", []):
+    for offer_idx, offer in enumerate(content.get("pricing", []), start=1):
         delivery_opts = offer.get("delivery_options", [None])
-        for d in delivery_opts:
+        for delivery_idx, d in enumerate(delivery_opts, start=1):
             row = {
                 "asin": content.get("asin"),
                 "title": content.get("title"),
@@ -166,6 +167,8 @@ def flatten_pricing(content: Dict, category_label: str, extracted_at: str, node_
                 "delivery": offer.get("delivery"),
                 "delivery_type": d.get("type") if d else None,
                 "delivery_date": d.get("date", {}).get("by") if d else None,
+                "offer_position": offer_idx,
+                "delivery_option_position": delivery_idx if d else None,
                 "category_label": category_label,
                 "node_label": node_label,
                 "extracted_at": extracted_at,
@@ -191,6 +194,37 @@ def save_to_gcs(df: pd.DataFrame, bucket_name: str, destination_blob_name: str):
     logging.info("Data saved to gs://%s/%s", bucket_name, destination_blob_name)
 
 
+def process_asin(
+    asin: str,
+    username: str,
+    password: str,
+    domain: str,
+    oxylabs_source: str,
+    endpoint: str,
+    category_label: str,
+    node_label: Optional[str],
+    extracted_at: str,
+    throttle_min: float,
+    throttle_max: float,
+) -> Tuple[Optional[pd.DataFrame], Optional[str]]:
+    """Call Oxylabs for one ASIN and return (df, error)."""
+    try:
+        resp = call_oxylabs(username, password, domain, asin, oxylabs_source, endpoint)
+        if "error" in resp and "results" not in resp:
+            time.sleep(random.uniform(throttle_min, throttle_max))
+            return None, resp.get("error", "Oxylabs error")
+
+        content = extract_content(resp)
+        df_offer = flatten_pricing(content, category_label, extracted_at, node_label=node_label)
+        time.sleep(random.uniform(throttle_min, throttle_max))
+
+        if df_offer.empty:
+            return None, "No pricing content"
+        return df_offer, None
+    except Exception as exc:
+        return None, str(exc)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Fetch Amazon pricing (Oxylabs) for a list of ASINs.")
     parser.add_argument("source_name", type=str, help="The source name in sources.yaml (e.g., marketplace1_price_listing).")
@@ -203,6 +237,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--bq-where", type=str, help="Optional WHERE clause (without 'WHERE').")
     parser.add_argument("--bq-distinct", action="store_true", help="Deduplicate values from BigQuery using DISTINCT.")
     parser.add_argument("--max-items", type=int, help="Optional cap on items to process.")
+    parser.add_argument("--max-workers", type=int, help="Number of concurrent Oxylabs requests (default from config or 8).")
     parser.add_argument("--no-upload", action="store_true", help="Save locally instead of GCS.")
     parser.add_argument("--local-dir", type=str, default="local_output", help="Local output directory when --no-upload is set.")
     return parser
@@ -230,6 +265,9 @@ def main(argv=None):
     label_for_output = f"{category_label}-{node_label}" if node_label else category_label
     throttle_min = cfg.get("throttle_min_seconds", 0.05)
     throttle_max = cfg.get("throttle_max_seconds", 0.2)
+    max_workers = args.max_workers or cfg.get("max_workers") or 8
+    if max_workers < 1:
+        max_workers = 1
 
     username_secret = cfg.get("oxylabs_username_secret_name", "marketplace1-price-oxylabs-username")
     password_secret = cfg.get("oxylabs_password_secret_name", "marketplace1-price-oxylabs-password")
@@ -256,27 +294,47 @@ def main(argv=None):
         logging.warning("No inputs to process. Exiting.")
         return
 
-    logging.info("Processing %d ASINs via Oxylabs.", len(inputs))
+    logging.info("Processing %d ASINs via Oxylabs with up to %d workers.", len(inputs), max_workers)
     all_dfs: List[pd.DataFrame] = []
     failures: List[str] = []
     extracted_at = datetime.now(timezone.utc).isoformat()
 
-    for idx, asin in enumerate(inputs, start=1):
-        resp = call_oxylabs(username, password, domain, asin, oxylabs_source, endpoint)
-        if "error" in resp and "results" not in resp:
-            failures.append(asin)
-        else:
-            content = extract_content(resp)
-            df_offer = flatten_pricing(content, label_for_output, extracted_at, node_label=node_label)
-            if df_offer.empty:
-                logging.warning("No pricing content for %s", asin)
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {
+            executor.submit(
+                process_asin,
+                asin,
+                username,
+                password,
+                domain,
+                oxylabs_source,
+                endpoint,
+                label_for_output,
+                node_label,
+                extracted_at,
+                throttle_min,
+                throttle_max,
+            ): asin
+            for asin in inputs
+        }
+
+        for idx, future in enumerate(as_completed(futures), start=1):
+            asin = futures[future]
+            try:
+                df_offer, error = future.result()
+            except Exception as exc:
+                logging.error("Unexpected error for %s: %s", asin, exc)
+                failures.append(asin)
+                continue
+
+            if error or df_offer is None or df_offer.empty:
+                logging.warning("No pricing content for %s (%s)", asin, error or "empty dataframe")
                 failures.append(asin)
             else:
                 all_dfs.append(df_offer)
 
-        if idx % 20 == 0:
-            logging.info("Processed %d/%d ASINs.", idx, len(inputs))
-        time.sleep(random.uniform(throttle_min, throttle_max))
+            if idx % 20 == 0 or idx == len(inputs):
+                logging.info("Processed %d/%d ASINs.", idx, len(inputs))
 
     if not all_dfs:
         sys.exit("❌ No data to save (all requests failed or returned empty).")

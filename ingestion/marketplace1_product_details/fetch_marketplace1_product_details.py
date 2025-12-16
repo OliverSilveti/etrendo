@@ -4,6 +4,7 @@ import logging
 import random
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -146,6 +147,23 @@ def save_to_gcs(df: pd.DataFrame, bucket_name: str, destination_blob_name: str):
     logging.info("Data saved to gs://%s/%s", bucket_name, destination_blob_name)
 
 
+def process_asin(
+    endpoint: str,
+    username: str,
+    password: str,
+    asin: str,
+    oxylabs_source: str,
+    domain: str,
+    throttle_min: float,
+    throttle_max: float,
+) -> Dict:
+    """Call Oxylabs for one ASIN with a built-in throttle pause."""
+    payload = call_oxylabs(endpoint, username, password, asin, oxylabs_source, domain)
+    # Keep a pause per request to avoid hammering the endpoint when using threads
+    time.sleep(random.uniform(throttle_min, throttle_max))
+    return payload
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Fetch Amazon product details via Oxylabs.")
     parser.add_argument("source_name", type=str, help="The source name in sources.yaml (e.g., marketplace1_product_details).")
@@ -158,6 +176,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--no-upload", action="store_true", help="Save locally instead of GCS.")
     parser.add_argument("--local-dir", type=str, default="local_output", help="Local output directory when --no-upload is set.")
     parser.add_argument("--category-label", type=str, help="Override category label for output path/naming.")
+    parser.add_argument("--max-workers", type=int, help="Number of concurrent Oxylabs requests (default from config or 6).")
     return parser
 
 
@@ -182,6 +201,9 @@ def main(argv=None):
     password = load_secret(cfg.get("oxylabs_password_secret_name", "marketplace1-price-oxylabs-password"))
     throttle_min = cfg.get("throttle_min_seconds", 0.3)
     throttle_max = cfg.get("throttle_max_seconds", 0.8)
+    max_workers = args.max_workers or cfg.get("max_workers") or 6
+    if max_workers < 1:
+        max_workers = 1
 
     # Exactly one input source must be provided
     provided_sources = [bool(args.input_file), bool(args.bq_table)]
@@ -201,13 +223,48 @@ def main(argv=None):
         logging.warning("No inputs to process. Exiting.")
         return
 
-    logging.info("Processing %d ASINs via Oxylabs.", len(inputs))
-    payloads: List[Dict] = []
-    for idx, asin in enumerate(inputs, start=1):
-        payloads.append(call_oxylabs(endpoint, username, password, asin, oxylabs_source, domain))
-        if idx % 20 == 0:
-            logging.info("Processed %d/%d ASINs.", idx, len(inputs))
-        time.sleep(random.uniform(throttle_min, throttle_max))
+    logging.info("Processing %d ASINs via Oxylabs with up to %d workers.", len(inputs), max_workers)
+    failures: List[str] = []
+    payloads_by_asin: Dict[str, Dict] = {}
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {
+            executor.submit(
+                process_asin,
+                endpoint,
+                username,
+                password,
+                asin,
+                oxylabs_source,
+                domain,
+                throttle_min,
+                throttle_max,
+            ): asin
+            for asin in inputs
+        }
+
+        for idx, future in enumerate(as_completed(futures), start=1):
+            asin = futures[future]
+            try:
+                payload = future.result()
+            except Exception as exc:
+                logging.error("Unexpected error for %s: %s", asin, exc)
+                payload = {"error": str(exc)}
+                failures.append(asin)
+
+            if payload is None:
+                payload = {"error": "Empty payload"}
+                failures.append(asin)
+            elif "error" in payload and "results" not in payload:
+                failures.append(asin)
+
+            payloads_by_asin[asin] = payload
+
+            if idx % 20 == 0 or idx == len(inputs):
+                logging.info("Processed %d/%d ASINs.", idx, len(inputs))
+
+    # Preserve original order for downstream normalization
+    payloads: List[Dict] = [payloads_by_asin.get(asin, {"error": "Missing result"}) for asin in inputs]
 
     df = normalize_records(payloads, inputs, category_label, node_label)
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
