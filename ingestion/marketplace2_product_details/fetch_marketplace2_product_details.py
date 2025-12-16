@@ -124,6 +124,7 @@ def save_to_gcs(df: pd.DataFrame, bucket_name: str, destination_blob_name: str):
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Fetch marketplace2 product details via Axesso.")
     parser.add_argument("source_name", type=str, help="The source name in sources.yaml (e.g., marketplace2_product_details).")
+    parser.add_argument("--category-label", type=str, help="Override category label for output path/naming.")
     parser.add_argument("--input-file", type=str, help="Local file with one URL/ID per line. Use '-' for stdin.")
     parser.add_argument("--bq-table", type=str, help="BigQuery table in project.dataset.table format.")
     parser.add_argument("--bq-column", type=str, default="url", help="Column name to read from BigQuery.")
@@ -149,7 +150,7 @@ def main(argv=None):
     endpoint = cfg.get("axesso_endpoint")
     if not endpoint:
         sys.exit("❌ axesso_endpoint missing in source parameters.")
-    category_label = cfg.get("category_label", args.source_name)
+    category_label = args.category_label or cfg.get("category_label", args.source_name)
     secret_name = cfg.get("axesso_secret_name", "marketplace2-details-axesso-key")
     api_key = load_axesso_api_key(secret_name)
 
@@ -178,7 +179,7 @@ def main(argv=None):
 
     df = normalize_records(payloads, inputs, category_label)
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-    filename = f"{category_label}_{timestamp}.jsonl"
+    filename = f"{timestamp}.jsonl"
 
     if args.no_upload:
         Path(args.local_dir).mkdir(parents=True, exist_ok=True)
