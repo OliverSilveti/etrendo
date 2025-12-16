@@ -49,6 +49,20 @@ sources:
       category_label: "blenders_mixers"
       max_pages: 100
       gcs_bucket_name: "amazon-product-listing-raw-etrendo-prd"
+  - name: "marketplace1_product_details"
+    type: "oxylabs_amazon_product_details"
+    enabled: true
+    parameters:
+      domain: "de"
+      oxylabs_source: "amazon_product"
+      category_label: "coffee_machines"
+      node: "13528250031"
+      gcs_bucket_name: "amazon-product-details-raw-etrendo-prd"
+      oxylabs_username_secret_name: "marketplace1-price-oxylabs-username"
+      oxylabs_password_secret_name: "marketplace1-price-oxylabs-password"
+      oxylabs_endpoint: "https://realtime.oxylabs.io/v1/queries"
+      throttle_min_seconds: 0.3
+      throttle_max_seconds: 0.8
 ###### Otto ######
   - name: "marketplace2_product_details"
     type: "axesso_api"

@@ -29,6 +29,8 @@ def main():
         module_candidates.append("ingestion.marketplace1_product_listing.fetch_marketplace1_product_listing")
     if job_name == "fetch_marketplace2_product_listing":
         module_candidates.append("ingestion.marketplace2_product_listing.fetch_marketplace2_product_listing")
+    if job_name == "fetch_marketplace1_product_details":
+        module_candidates.append("ingestion.marketplace1_product_details.fetch_marketplace1_product_details")
 
     job_module = None
     for module_path in module_candidates:
