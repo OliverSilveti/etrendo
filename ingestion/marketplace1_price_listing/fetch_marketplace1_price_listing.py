@@ -172,12 +172,78 @@ def flatten_pricing(content: Dict, category_label: str, extracted_at: str, node_
                 "category_label": category_label,
                 "node_label": node_label,
                 "extracted_at": extracted_at,
+                "pricing_status": "offer",
             }
             rows.append(row)
 
     if not rows:
         return pd.DataFrame()
     return pd.DataFrame(rows)
+
+
+def build_no_pricing_row(asin: str, content: Optional[Dict], category_label: str, extracted_at: str, node_label: Optional[str]) -> pd.DataFrame:
+    """Create a single row indicating the ASIN had no pricing offers."""
+    content = content or {}
+    asin_val = content.get("asin") or asin
+    return pd.DataFrame(
+        [
+            {
+                "asin": asin_val,
+                "title": content.get("title"),
+                "url": content.get("url"),
+                "review_count": content.get("review_count"),
+                "seller": None,
+                "price": None,
+                "currency": None,
+                "price_shipping": None,
+                "condition": None,
+                "rating_count": None,
+                "seller_id": None,
+                "seller_link": None,
+                "delivery": None,
+                "delivery_type": None,
+                "delivery_date": None,
+                "offer_position": None,
+                "delivery_option_position": None,
+                "category_label": category_label,
+                "node_label": node_label,
+                "extracted_at": extracted_at,
+                "pricing_status": "no_offers",
+            }
+        ]
+    )
+
+
+def build_error_row(asin: str, category_label: str, extracted_at: str, node_label: Optional[str], error_message: str) -> pd.DataFrame:
+    """Create a single row indicating the ASIN failed to return pricing content."""
+    return pd.DataFrame(
+        [
+            {
+                "asin": asin,
+                "title": None,
+                "url": None,
+                "review_count": None,
+                "seller": None,
+                "price": None,
+                "currency": None,
+                "price_shipping": None,
+                "condition": None,
+                "rating_count": None,
+                "seller_id": None,
+                "seller_link": None,
+                "delivery": None,
+                "delivery_type": None,
+                "delivery_date": None,
+                "offer_position": None,
+                "delivery_option_position": None,
+                "category_label": category_label,
+                "node_label": node_label,
+                "extracted_at": extracted_at,
+                "pricing_status": "error",
+                "error_message": error_message,
+            }
+        ]
+    )
 
 
 def save_to_gcs(df: pd.DataFrame, bucket_name: str, destination_blob_name: str):
@@ -212,17 +278,19 @@ def process_asin(
         resp = call_oxylabs(username, password, domain, asin, oxylabs_source, endpoint)
         if "error" in resp and "results" not in resp:
             time.sleep(random.uniform(throttle_min, throttle_max))
-            return None, resp.get("error", "Oxylabs error")
+            err_msg = resp.get("error", "Oxylabs error")
+            return build_error_row(asin, category_label, extracted_at, node_label, err_msg), err_msg
 
         content = extract_content(resp)
         df_offer = flatten_pricing(content, category_label, extracted_at, node_label=node_label)
+        if df_offer.empty:
+            df_offer = build_no_pricing_row(asin, content, category_label, extracted_at, node_label)
         time.sleep(random.uniform(throttle_min, throttle_max))
 
-        if df_offer.empty:
-            return None, "No pricing content"
         return df_offer, None
     except Exception as exc:
-        return None, str(exc)
+        # Surface unexpected exceptions as ingested error rows so the ASIN is not lost
+        return build_error_row(asin, category_label, extracted_at, node_label, str(exc)), str(exc)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -233,7 +301,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--input-file-gcs", type=str, help="GCS URI to a text file with one ASIN per line (gs://bucket/path).")
     parser.add_argument("--input-file", type=str, help="Local file with one ASIN per line. Use '-' for stdin.")
     parser.add_argument("--bq-table", type=str, help="BigQuery table in project.dataset.table format.")
-    parser.add_argument("--bq-column", type=str, default="asin", help="Column name to read from BigQuery.")
+    parser.add_argument("--bq-column", type=str, help="Column name to read from BigQuery (defaults to config or 'asin').")
     parser.add_argument("--bq-where", type=str, help="Optional WHERE clause (without 'WHERE').")
     parser.add_argument("--bq-distinct", action="store_true", help="Deduplicate values from BigQuery using DISTINCT.")
     parser.add_argument("--max-items", type=int, help="Optional cap on items to process.")
@@ -268,27 +336,41 @@ def main(argv=None):
     max_workers = args.max_workers or cfg.get("max_workers") or 8
     if max_workers < 1:
         max_workers = 1
+    cfg_bq_table = cfg.get("bq_table")
+    cfg_bq_column = cfg.get("bq_column")
+    cfg_bq_where = cfg.get("bq_where")
+    cfg_bq_distinct = cfg.get("bq_distinct", False)
+    cfg_max_items = cfg.get("max_items")
 
     username_secret = cfg.get("oxylabs_username_secret_name", "marketplace1-price-oxylabs-username")
     password_secret = cfg.get("oxylabs_password_secret_name", "marketplace1-price-oxylabs-password")
     username = load_secret(username_secret)
     password = load_secret(password_secret)
 
-    # Exactly one input source must be provided
+    # Exactly one input source must be provided via flags, OR fall back to config defaults (bq_table)
     provided_sources = [bool(args.input_file_gcs), bool(args.input_file), bool(args.bq_table)]
-    if sum(provided_sources) != 1:
-        sys.exit("❌ Provide exactly one input source: --input-file-gcs or --input-file or --bq-table.")
+    if sum(provided_sources) > 1:
+        sys.exit("❌ Provide only one input source: --input-file-gcs or --input-file or --bq-table.")
+
+    # Resolve BQ settings from flags or config defaults
+    selected_bq_table = args.bq_table or cfg_bq_table
+    selected_bq_column = args.bq_column or cfg_bq_column or "asin"
+    selected_bq_where = args.bq_where if args.bq_where is not None else cfg_bq_where
+    selected_bq_distinct = args.bq_distinct or cfg_bq_distinct
+    selected_max_items = args.max_items if args.max_items is not None else cfg_max_items
 
     inputs: List[str] = []
     if args.input_file_gcs:
-        inputs = read_input_from_gcs(args.input_file_gcs, args.max_items)
+        inputs = read_input_from_gcs(args.input_file_gcs, selected_max_items)
     elif args.input_file:
         if args.input_file == "-":
             inputs = [line.strip() for line in sys.stdin if line.strip()]
         else:
-            inputs = read_input_from_file(args.input_file, args.max_items)
-    elif args.bq_table:
-        inputs = read_input_from_bigquery(args.bq_table, args.bq_column, args.bq_where, args.max_items, distinct=args.bq_distinct)
+            inputs = read_input_from_file(args.input_file, selected_max_items)
+    else:
+        if not selected_bq_table:
+            sys.exit("❌ Provide an input source or set bq_table in config.")
+        inputs = read_input_from_bigquery(selected_bq_table, selected_bq_column, selected_bq_where, selected_max_items, distinct=selected_bq_distinct)
 
     if not inputs:
         logging.warning("No inputs to process. Exiting.")
@@ -327,10 +409,15 @@ def main(argv=None):
                 failures.append(asin)
                 continue
 
-            if error or df_offer is None or df_offer.empty:
+            if df_offer is None or df_offer.empty:
                 logging.warning("No pricing content for %s (%s)", asin, error or "empty dataframe")
                 failures.append(asin)
             else:
+                statuses = set(df_offer["pricing_status"].unique()) if "pricing_status" in df_offer else set()
+                if "no_offers" in statuses:
+                    logging.warning("No pricing offers for %s (pricing_status=no_offers)", asin)
+                if error:
+                    logging.warning("Pricing error captured for %s (%s) but ingested as error row.", asin, error)
                 all_dfs.append(df_offer)
 
             if idx % 20 == 0 or idx == len(inputs):
