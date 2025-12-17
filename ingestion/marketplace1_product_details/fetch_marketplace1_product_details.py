@@ -26,6 +26,23 @@ except FileNotFoundError as e:
     raise ValueError(f"Configuration file not found: {e}")
 
 
+def parse_jsonish(value):
+    """
+    Normalize values that may arrive as JSON strings or already-parsed lists/dicts.
+    Returns the original value when it is not JSON-like, otherwise a parsed object.
+    """
+    if isinstance(value, (list, dict)) or value is None:
+        return value
+    if isinstance(value, str):
+        candidate = value.strip()
+        if candidate.startswith(("{", "[")) and candidate.endswith(("}", "]")):
+            try:
+                return json.loads(candidate)
+            except Exception:
+                return value
+    return value
+
+
 def load_secret(secret_name: str) -> str:
     """Load a secret from mounted file or Secret Manager."""
     file_path = Path("/etc/secrets") / secret_name
@@ -124,7 +141,7 @@ def normalize_records(raw_records: List[Dict], input_items: List[str], category_
             if not content:
                 status = "no_content"
 
-        category_value = content.get("category") or category_label
+        category_value = parse_jsonish(content.get("category") or category_label)
         asin_val = content.get("asin") or content.get("asin_in_url") or asin
 
         # Basic fields
@@ -145,7 +162,8 @@ def normalize_records(raw_records: List[Dict], input_items: List[str], category_
         sales_volume = content.get("sales_volume")
         parent_asin = content.get("parent_asin")
         product_name = content.get("product_name")
-        description = content.get("description")
+        description_raw = content.get("description")
+        description = parse_jsonish(description_raw)
         coupon = content.get("coupon")
         store_url = content.get("store_url")
         pricing_url = content.get("pricing_url")
@@ -160,7 +178,7 @@ def normalize_records(raw_records: List[Dict], input_items: List[str], category_
             bullet_points_joined = "\n".join([bp for bp in bullet_points if bp])
         else:
             bullet_points_joined = bullet_points
-        images = content.get("images")
+        images = parse_jsonish(content.get("images"))
         main_image = None
         if isinstance(images, list):
             for img in images:
@@ -169,7 +187,7 @@ def normalize_records(raw_records: List[Dict], input_items: List[str], category_
                     break
 
         # Variation
-        variation = content.get("variation") or []
+        variation = parse_jsonish(content.get("variation") or [])
         variation_selected_asin = None
         variation_selected_dimensions = None
         for v in variation:
@@ -177,17 +195,18 @@ def normalize_records(raw_records: List[Dict], input_items: List[str], category_
                 variation_selected_asin = v.get("asin")
                 variation_selected_dimensions = v.get("dimensions")
                 break
+        variation_selected_dimensions = parse_jsonish(variation_selected_dimensions)
 
         # Nested structures
-        sales_rank = content.get("sales_rank")
-        delivery = content.get("delivery")
-        buybox = content.get("buybox")
-        rating_stars_distribution = content.get("rating_stars_distribution")
-        product_details = content.get("product_details")
-        product_overview = content.get("product_overview")
-        technical_details = content.get("technical_details")
+        sales_rank = parse_jsonish(content.get("sales_rank"))
+        delivery = parse_jsonish(content.get("delivery"))
+        buybox = parse_jsonish(content.get("buybox"))
+        rating_stars_distribution = parse_jsonish(content.get("rating_stars_distribution"))
+        product_details = parse_jsonish(content.get("product_details"))
+        product_overview = parse_jsonish(content.get("product_overview"))
+        technical_details = parse_jsonish(content.get("technical_details"))
         other_sellers = content.get("other_sellers")
-        sns_discounts = content.get("sns_discounts")
+        sns_discounts = parse_jsonish(content.get("sns_discounts"))
         answered_questions_count = content.get("answered_questions_count")
 
         rows.append(
@@ -219,24 +238,24 @@ def normalize_records(raw_records: List[Dict], input_items: List[str], category_
                 "pricing_url": pricing_url,
                 "pricing_str": pricing_str,
                 "manufacturer": manufacturer,
-                "category": _j(category_value),
+                "category": category_value,
                 "is_prime_eligible": is_prime_eligible,
                 "has_videos": has_videos,
-                "images": _j(images),
+                "images": images,
                 "main_image": main_image,
                 "bullet_points": bullet_points_joined,
                 "variation_selected_asin": variation_selected_asin,
-                "variation_selected_dimensions": _j(variation_selected_dimensions),
-                "variation_all": _j(variation),
-                "sales_rank": _j(sales_rank),
-                "delivery": _j(delivery),
-                "buybox": _j(buybox),
-                "rating_stars_distribution": _j(rating_stars_distribution),
-                "product_details": _j(product_details),
-                "product_overview": _j(product_overview),
-                "technical_details": _j(technical_details),
+                "variation_selected_dimensions": variation_selected_dimensions,
+                "variation_all": variation,
+                "sales_rank": sales_rank,
+                "delivery": delivery,
+                "buybox": buybox,
+                "rating_stars_distribution": rating_stars_distribution,
+                "product_details": product_details,
+                "product_overview": product_overview,
+                "technical_details": technical_details,
                 "other_sellers": other_sellers,
-                "sns_discounts": _j(sns_discounts),
+                "sns_discounts": sns_discounts,
                 "answered_questions_count": answered_questions_count,
                 "item_status": status,
                 "error_message": error_message,
