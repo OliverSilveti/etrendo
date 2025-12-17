@@ -71,7 +71,7 @@ def read_input_from_bigquery(table: str, column: str, where: Optional[str], max_
     return [row.val for row in rows if row.val]
 
 
-def call_oxylabs(endpoint: str, username: str, password: str, asin: str, source: str, domain: str) -> Dict:
+def call_oxylabs(endpoint: str, username: str, password: str, asin: str, source: str, domain: str, locale: Optional[str] = None) -> Dict:
     """Call Oxylabs realtime API for a single ASIN and return parsed JSON."""
     payload = {
         "source": source,
@@ -79,6 +79,8 @@ def call_oxylabs(endpoint: str, username: str, password: str, asin: str, source:
         "query": asin,
         "parse": True,
     }
+    if locale:
+        payload["locale"] = locale
     try:
         resp = requests.post(endpoint, auth=(username, password), json=payload, timeout=30)
         resp.raise_for_status()
@@ -105,28 +107,140 @@ def normalize_records(raw_records: List[Dict], input_items: List[str], category_
             return None
         return None
 
+    def _j(obj):
+        return json.dumps(obj, ensure_ascii=False) if obj is not None else None
+
     for asin, payload in zip(input_items, raw_records):
-        content = extract_content(payload) or {}
+        status = "ok"
+        error_message = None
+        status_code = payload.get("status_code")
+
+        if "error" in payload and "results" not in payload:
+            status = "error"
+            error_message = payload.get("error")
+            content = {}
+        else:
+            content = extract_content(payload) or {}
+            if not content:
+                status = "no_content"
+
         category_value = content.get("category") or category_label
+        asin_val = content.get("asin") or content.get("asin_in_url") or asin
+
+        # Basic fields
+        title = content.get("title")
+        brand = content.get("brand")
+        url = content.get("url")
+        page_type = content.get("page_type")
+        stock = content.get("stock")
+        price = content.get("price")
+        price_upper = content.get("price_upper")
+        price_initial = content.get("price_initial")
+        price_shipping = content.get("price_shipping")
+        price_buybox = content.get("price_buybox")
+        price_sns = content.get("price_sns")
+        currency = content.get("currency")
+        rating = content.get("rating")
+        review_count = content.get("review_count") or content.get("reviews_count")
+        sales_volume = content.get("sales_volume")
+        parent_asin = content.get("parent_asin")
+        product_name = content.get("product_name")
+        description = content.get("description")
+        coupon = content.get("coupon")
+        store_url = content.get("store_url")
+        pricing_url = content.get("pricing_url")
+        pricing_str = content.get("pricing_str")
+        manufacturer = content.get("manufacturer")
+        is_prime_eligible = content.get("is_prime_eligible")
+        has_videos = content.get("has_videos")
+
+        # Bullets / images
+        bullet_points = content.get("bullet_points")
+        if isinstance(bullet_points, list):
+            bullet_points_joined = "\n".join([bp for bp in bullet_points if bp])
+        else:
+            bullet_points_joined = bullet_points
+        images = content.get("images")
+        main_image = None
+        if isinstance(images, list):
+            for img in images:
+                if img:
+                    main_image = img
+                    break
+
+        # Variation
+        variation = content.get("variation") or []
+        variation_selected_asin = None
+        variation_selected_dimensions = None
+        for v in variation:
+            if v.get("selected"):
+                variation_selected_asin = v.get("asin")
+                variation_selected_dimensions = v.get("dimensions")
+                break
+
+        # Nested structures
+        sales_rank = content.get("sales_rank")
+        delivery = content.get("delivery")
+        buybox = content.get("buybox")
+        rating_stars_distribution = content.get("rating_stars_distribution")
+        product_details = content.get("product_details")
+        product_overview = content.get("product_overview")
+        technical_details = content.get("technical_details")
+        other_sellers = content.get("other_sellers")
+        sns_discounts = content.get("sns_discounts")
+        answered_questions_count = content.get("answered_questions_count")
+
         rows.append(
             {
-                "asin": asin,
+                "asin": asin_val,
                 "category_label": category_label,
                 "extracted_at": extracted_at,
                 "node": node_label,
-                # Commonly useful flattened fields from Oxylabs content (best-effort)
-                "title": content.get("title"),
-                "price": content.get("price"),
-                "currency": content.get("currency"),
-                "rating": content.get("rating"),
-                "review_count": content.get("review_count"),
-                "buybox_price": content.get("buybox_price"),
-                "buybox_currency": content.get("buybox_currency"),
-                "buybox_shipping": content.get("buybox_shipping"),
-                "url": content.get("url"),
-                "brand": content.get("brand"),
-                "category": category_value,
-                # Full raw payload serialized (avoid empty struct issues with external tables)
+                "title": title,
+                "brand": brand,
+                "url": url,
+                "page_type": page_type,
+                "stock": stock,
+                "price": price,
+                "price_upper": price_upper,
+                "price_initial": price_initial,
+                "price_shipping": price_shipping,
+                "price_buybox": price_buybox,
+                "price_sns": price_sns,
+                "currency": currency,
+                "rating": rating,
+                "review_count": review_count,
+                "sales_volume": sales_volume,
+                "parent_asin": parent_asin,
+                "product_name": product_name,
+                "description": description,
+                "coupon": coupon,
+                "store_url": store_url,
+                "pricing_url": pricing_url,
+                "pricing_str": pricing_str,
+                "manufacturer": manufacturer,
+                "category": _j(category_value),
+                "is_prime_eligible": is_prime_eligible,
+                "has_videos": has_videos,
+                "images": _j(images),
+                "main_image": main_image,
+                "bullet_points": bullet_points_joined,
+                "variation_selected_asin": variation_selected_asin,
+                "variation_selected_dimensions": _j(variation_selected_dimensions),
+                "variation_all": _j(variation),
+                "sales_rank": _j(sales_rank),
+                "delivery": _j(delivery),
+                "buybox": _j(buybox),
+                "rating_stars_distribution": _j(rating_stars_distribution),
+                "product_details": _j(product_details),
+                "product_overview": _j(product_overview),
+                "technical_details": _j(technical_details),
+                "other_sellers": other_sellers,
+                "sns_discounts": _j(sns_discounts),
+                "answered_questions_count": answered_questions_count,
+                "item_status": status,
+                "error_message": error_message,
+                "status_code": status_code,
                 "payload_raw": json.dumps(payload, ensure_ascii=False),
             }
         )
@@ -154,11 +268,12 @@ def process_asin(
     asin: str,
     oxylabs_source: str,
     domain: str,
+    locale: Optional[str],
     throttle_min: float,
     throttle_max: float,
 ) -> Dict:
     """Call Oxylabs for one ASIN with a built-in throttle pause."""
-    payload = call_oxylabs(endpoint, username, password, asin, oxylabs_source, domain)
+    payload = call_oxylabs(endpoint, username, password, asin, oxylabs_source, domain, locale)
     # Keep a pause per request to avoid hammering the endpoint when using threads
     time.sleep(random.uniform(throttle_min, throttle_max))
     return payload
@@ -169,7 +284,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("source_name", type=str, help="The source name in sources.yaml (e.g., marketplace1_product_details).")
     parser.add_argument("--input-file", type=str, help="Local file with one ASIN per line. Use '-' for stdin.")
     parser.add_argument("--bq-table", type=str, help="BigQuery table in project.dataset.table format.")
-    parser.add_argument("--bq-column", type=str, default="asin", help="Column name to read from BigQuery.")
+    parser.add_argument("--bq-column", type=str, help="Column name to read from BigQuery (defaults to config or 'asin').")
     parser.add_argument("--bq-where", type=str, help="Optional WHERE clause (without 'WHERE').")
     parser.add_argument("--bq-distinct", action="store_true", help="Deduplicate values from BigQuery using DISTINCT.")
     parser.add_argument("--max-items", type=int, help="Optional cap on items to process.")
@@ -195,6 +310,7 @@ def main(argv=None):
     endpoint = cfg.get("oxylabs_endpoint", "https://realtime.oxylabs.io/v1/queries")
     oxylabs_source = cfg.get("oxylabs_source", "amazon_product")
     domain = cfg.get("domain", "de")
+    locale = cfg.get("locale")
     category_label = args.category_label or cfg.get("category_label", args.source_name)
     node_label = cfg.get("node") or cfg.get("node_label")
     username = load_secret(cfg.get("oxylabs_username_secret_name", "marketplace1-price-oxylabs-username"))
@@ -204,20 +320,34 @@ def main(argv=None):
     max_workers = args.max_workers or cfg.get("max_workers") or 6
     if max_workers < 1:
         max_workers = 1
+    cfg_bq_table = cfg.get("bq_table")
+    cfg_bq_column = cfg.get("bq_column")
+    cfg_bq_where = cfg.get("bq_where")
+    cfg_bq_distinct = cfg.get("bq_distinct", False)
+    cfg_max_items = cfg.get("max_items")
 
     # Exactly one input source must be provided
     provided_sources = [bool(args.input_file), bool(args.bq_table)]
-    if sum(provided_sources) != 1:
-        sys.exit("❌ Provide exactly one input source: --input-file or --bq-table.")
+    if sum(provided_sources) > 1:
+        sys.exit("❌ Provide only one input source: --input-file or --bq-table.")
+
+    # Resolve BQ settings from flags or config defaults
+    selected_bq_table = args.bq_table or cfg_bq_table
+    selected_bq_column = args.bq_column or cfg_bq_column or "asin"
+    selected_bq_where = args.bq_where if args.bq_where is not None else cfg_bq_where
+    selected_bq_distinct = args.bq_distinct or cfg_bq_distinct
+    selected_max_items = args.max_items if args.max_items is not None else cfg_max_items
 
     inputs: List[str] = []
     if args.input_file:
         if args.input_file == "-":
             inputs = [line.strip() for line in sys.stdin if line.strip()]
         else:
-            inputs = read_input_from_file(args.input_file, args.max_items)
-    elif args.bq_table:
-        inputs = read_input_from_bigquery(args.bq_table, args.bq_column, args.bq_where, args.max_items, distinct=args.bq_distinct)
+            inputs = read_input_from_file(args.input_file, selected_max_items)
+    else:
+        if not selected_bq_table:
+            sys.exit("❌ Provide an input source or set bq_table in config.")
+        inputs = read_input_from_bigquery(selected_bq_table, selected_bq_column, selected_bq_where, selected_max_items, distinct=selected_bq_distinct)
 
     if not inputs:
         logging.warning("No inputs to process. Exiting.")
@@ -237,6 +367,7 @@ def main(argv=None):
                 asin,
                 oxylabs_source,
                 domain,
+                locale,
                 throttle_min,
                 throttle_max,
             ): asin
