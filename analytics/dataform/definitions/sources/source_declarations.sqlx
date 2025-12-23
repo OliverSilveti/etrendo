@@ -1,0 +1,11 @@
+-- In this file, you declare the raw source tables from BigQuery that your project will use.
+-- Docs: https://docs.dataform.co/guides/source-control/declare-a-source
+
+/*
+-- Example of declaring a raw table from a fictitious "marketplace_raw_data" dataset
+source "raw_listings" {
+  type: "table",
+  schema: "marketplace_raw_data",
+  name: "listings"
+}
+*/

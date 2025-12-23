@@ -1,0 +1,7 @@
+config { 
+    type: "table",
+    tags: ["gold"]
+}
+
+-- TODO: Add your SELECT statement here
+-- This model will likely depend on silver tables, e.g. FROM ${ref("reviews_silver")}
