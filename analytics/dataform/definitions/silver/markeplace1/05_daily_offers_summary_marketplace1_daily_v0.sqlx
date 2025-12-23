@@ -1,6 +1,10 @@
-CREATE OR REPLACE TABLE `etrendo-prd.amazon_silver.amazon_offers_summary_coffee_machines_daily_v0`
-PARTITION BY offer_date
-CLUSTER BY asin AS
+config { 
+    type: "table",
+    partitionBy: "offer_date",
+    clusterBy: ["asin"],
+    tags: ["silver", "marketplace1", "daily_offers"]
+}
+
 SELECT
   DATE(extracted_at) AS offer_date,
   asin,
@@ -12,7 +16,7 @@ SELECT
   APPROX_QUANTILES(SAFE_CAST(price AS NUMERIC) + COALESCE(SAFE_CAST(price_shipping AS NUMERIC), 0), 2)[OFFSET(1)] AS median_total_price,
   MAX(SAFE_CAST(price AS NUMERIC) + COALESCE(SAFE_CAST(price_shipping AS NUMERIC), 0)) AS max_total_price
 
-FROM `etrendo-prd.amazon_silver_stg.amazon_price_listing_coffee_machines_flat`
+FROM ${ref("01_marketplace1_price_listing_flat")}
 WHERE asin IS NOT NULL AND TRIM(asin) != ''
   AND SAFE_CAST(price AS NUMERIC) > 0   -- filters junk rows
-GROUP BY offer_date, asin;
+GROUP BY offer_date, asin

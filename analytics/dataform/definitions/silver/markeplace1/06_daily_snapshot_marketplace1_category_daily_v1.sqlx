@@ -1,13 +1,17 @@
-CREATE OR REPLACE TABLE `etrendo-prd.amazon_silver.amazon_coffee_machines_snapshot_daily_v1`
-PARTITION BY snapshot_date
-CLUSTER BY asin AS
+config { 
+    type: "table",
+    partitionBy: "snapshot_date",
+    clusterBy: ["asin"],
+    tags: ["silver", "marketplace1", "daily_snapshot"]
+}
+
 WITH listing_latest AS (
   SELECT * EXCEPT(rn)
   FROM (
     SELECT
       l.*,
       ROW_NUMBER() OVER (PARTITION BY asin ORDER BY extracted_at DESC) AS rn
-    FROM `etrendo-prd.amazon_silver.amazon_product_listing_coffee_machines_current` l
+    FROM ${ref("01_refresh_marketplace1_product_listing_current")} l
     WHERE asin IS NOT NULL AND TRIM(asin) != ''
   )
   WHERE rn = 1
@@ -52,9 +56,9 @@ SELECT
     ELSE 'INCOMPLETE_PDP'
   END AS data_coverage
 
-FROM `etrendo-prd.amazon_silver.amazon_coffee_machines_snapshot_daily_v0` s
+FROM ${ref("04_marketplace1_snapshot_category_daily_v0")} s
 LEFT JOIN listing_latest l
   ON l.asin = s.asin
-LEFT JOIN `etrendo-prd.amazon_silver.amazon_offers_summary_coffee_machines_daily_v0` o
+LEFT JOIN ${ref("05_daily_offers_summary_marketplace1_daily_v0")} o
   ON o.asin = s.asin
- AND o.offer_date = s.snapshot_date;
+ AND o.offer_date = s.snapshot_date

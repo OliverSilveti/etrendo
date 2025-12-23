@@ -1,0 +1,56 @@
+config { 
+    type: "table",
+    partitionBy: "snapshot_date",
+    clusterBy: ["asin"],
+    tags: ["silver", "marketplace1", "daily_snapshot"]
+}
+
+CREATE OR REPLACE TABLE `etrendo-prd.amazon_silver.amazon_coffee_machines_snapshot_daily_base`
+PARTITION BY snapshot_date
+CLUSTER BY asin AS
+SELECT
+  DATE(extracted_at) AS snapshot_date,
+  extracted_at,
+
+  asin,
+  node,
+  category_label,
+  title,
+  brand,
+  url,
+
+  currency,
+
+  -- PDP truth (clean)
+  price_clean            AS pdp_price,
+  price_shipping_clean   AS pdp_price_shipping,
+  total_price_clean      AS pdp_total_price,
+
+  -- Buy Box fields (already parsed)
+  buybox_seller_id,
+  buybox_seller_name,
+  buybox_price_from_json_clean AS buybox_price_from_json,
+  buybox_is_amazon,
+  buybox_stock,
+
+  -- Availability / debug
+  stock,
+  item_status,
+  status_code,
+  error_message,
+
+  -- Key quality label
+  pdp_extraction_state,
+
+  -- Simple business-facing state
+  CASE
+    WHEN pdp_extraction_state = 'COMPLETE' THEN 'BUYABLE'
+    WHEN pdp_extraction_state = 'INCOMPLETE_PRICE_EXTRACTION' THEN 'INCOMPLETE'
+    ELSE 'UNKNOWN'
+  END AS pdp_state
+
+FROM ${ref("00_marketplace1_product_details_flat")}
+QUALIFY ROW_NUMBER() OVER (
+  PARTITION BY asin, DATE(extracted_at)
+  ORDER BY extracted_at DESC
+) = 1;
