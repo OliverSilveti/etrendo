@@ -1,3 +1,20 @@
-config { type: "table" }
+config { 
+    type: "table",
+    clusterBy: ["asin"],
+    tags: ["silver", "marketplace1", "products"]
+}
 
--- TODO: Add your SELECT statement here
+WITH ranked AS (
+  SELECT
+    *,
+    ROW_NUMBER() OVER (
+      PARTITION BY asin
+      ORDER BY extracted_at DESC
+    ) AS rn
+  FROM ${ref("00_marketplace1_product_details_flat")}
+)
+
+SELECT
+  * EXCEPT (rn)
+FROM ranked
+WHERE rn = 1

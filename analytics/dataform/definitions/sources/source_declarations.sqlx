@@ -9,3 +9,51 @@ source "raw_listings" {
   name: "listings"
 }
 */
+
+-- marketplace1 product details
+declaration "marketplace1_product_details" {
+    type: "table",
+    database: "etrendo-prd",
+    schema: "amazon_bronze",
+name: "amazon_product_details_coffee_machines"
+}
+
+-- marketplace1 price listing
+declaration "marketplace1_price_listing" {
+    type: "table",
+    database: "etrendo-prd",
+    schema: "amazon_bronze",
+    name: "amazon_price_listing_coffee_machines"
+}
+
+-- listings
+declaration "listings" {
+    type: "table",
+    database: "etrendo-prd",
+    schema: "amazon_bronze",
+    name: "listings"
+}
+
+-- reviews
+declaration "reviews" {
+    type: "table",
+    database: "etrendo-prd",
+    schema: "amazon_bronze",
+    name: "reviews"
+}
+
+-- otto product listing
+declaration "otto_product_listing" {
+    type: "table",
+    database: "etrendo-prd",
+    schema: "otto_bronze",
+    name: "otto_product_listing_coffee_machines"
+}
+
+-- marketplace1 product listing
+declaration "marketplace1_product_listing" {
+    type: "table",
+    database: "etrendo-prd",
+    schema: "amazon_bronze",
+    name: "amazon_product_listing_coffee_machines"
+}
