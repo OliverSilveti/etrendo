@@ -15,7 +15,7 @@ sources:
       throttle_min_seconds: 0.05
       throttle_max_seconds: 0.2
       max_workers: 8
-      bq_table: "etrendo-prd.amazon_silver.amazon_product_listing_coffee_machines_current"
+      bq_table: "etrendo-prd.amazon_silver.amazon_coffee_machines_product_listing_current"
       bq_column: "asin"
       bq_where: "is_active = true"
   - name: "marketplace1_product_listing"
