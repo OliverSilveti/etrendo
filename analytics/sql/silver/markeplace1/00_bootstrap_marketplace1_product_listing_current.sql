@@ -144,6 +144,3 @@ SELECT
 FROM chosen c
 LEFT JOIN first_seen f
 USING (category_label, node, asin);
-
-
-
