@@ -70,7 +70,7 @@ sources:
       throttle_max_seconds: 0.8
       max_workers: 6
       locale: "de_DE"
-      bq_table: "etrendo-prd.amazon_silver.amazon_product_listing_coffee_machines_current"
+      bq_table: "etrendo-prd.amazon_silver.amazon_coffee_machines_product_listing_current"
       bq_column: "asin"
       bq_where: "is_active = true"
 ###### Otto ######
