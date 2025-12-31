@@ -1,6 +1,14 @@
 # E-commerce Insights & AI Agent
 
-This repository contains the code for an MVP to provide e-commerce insights and power an AI agent using GCP, BigQuery, and Gemini.
+Etrendo is an AI assistant for e-commerce teams that surfaces pricing dynamics, competitor moves, and market signals from close-to-live marketplace data. It ingests listings and product details daily across multiple marketplaces, lands them in BigQuery, shapes them into curated tables, and serves an agent API that answers questions with fresh context (pricing trends, assortment gaps, buy-box movements, reviews, etc.).
+
+Core pieces:
+- Ingestion: Cloud Run jobs (marketplace1/2) pulling listings and product details, scheduled via Cloud Scheduler, storing raw data in GCS (daily runs; near-real refresh possible).
+- Analytics: SQL models in BigQuery (bronze->silver) to flatten, cleanse, and snapshot product/pricing data for stable querying.
+- Agent: FastAPI + Gemini backend that uses the curated tables to answer pricing and competitive-intelligence questions.
+- Infra: Terraform for Cloud Run jobs, Scheduler triggers, Artifact Registry, Secret Manager, and GCS buckets.
+
+Outcome examples: track buy-box shifts, detect competitor repricing and stock changes, spot assortment gaps, summarize reviews, and monitor category-level price dispersion over time.
 
 ## Getting Started
 
