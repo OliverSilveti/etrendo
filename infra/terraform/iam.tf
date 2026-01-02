@@ -5,7 +5,8 @@ resource "google_project_service" "services" {
     "secretmanager.googleapis.com",
     "artifactregistry.googleapis.com",
     "storage.googleapis.com",
-    "cloudbuild.googleapis.com"
+    "cloudbuild.googleapis.com",
+    "aiplatform.googleapis.com"
   ])
   service            = each.key
   disable_on_destroy = false
@@ -21,6 +22,12 @@ resource "google_service_account" "job_runner_marketplace2" {
   account_id   = "${var.service_name_marketplace2}-sa"
   project      = local.project_id
   display_name = "Service Account for Marketplace2 Ingestion Job"
+}
+
+resource "google_service_account" "agent_runner" {
+  account_id   = "etrendo-agent-sa"
+  project      = local.project_id
+  display_name = "Service Account for Etrendo Agent"
 }
 
 resource "google_secret_manager_secret" "serpapi_key" {
@@ -55,6 +62,18 @@ resource "google_storage_bucket_iam_member" "gcs_writer_marketplace2" {
   bucket = var.gcs_bucket_marketplace2
   role   = "roles/storage.objectAdmin"
   member = "serviceAccount:${google_service_account.job_runner_marketplace2.email}"
+}
+
+resource "google_project_iam_member" "agent_bq_viewer" {
+  project = local.project_id
+  role    = "roles/bigquery.dataViewer"
+  member  = "serviceAccount:${google_service_account.agent_runner.email}"
+}
+
+resource "google_project_iam_member" "agent_aiplatform_user" {
+  project = local.project_id
+  role    = "roles/aiplatform.user"
+  member  = "serviceAccount:${google_service_account.agent_runner.email}"
 }
 
 resource "google_artifact_registry_repository" "repo" {

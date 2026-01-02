@@ -1,0 +1,9 @@
+
+bigquery:
+  project_id: "etrendo-prd"
+  dataset_id: "amazon_gold"
+  table_id: "amazon_coffee_machines_snapshot_category_daily"
+vertex_ai:
+  project_id: "etrendo-prd"
+  location: "europe-west1"
+  model_name: "gemini-1.5-pro-preview-0409"
