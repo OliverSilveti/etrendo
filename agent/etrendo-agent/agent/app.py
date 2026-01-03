@@ -1,7 +1,10 @@
 
-from fastapi import FastAPI
+import logging
+
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from agent.agent import root_agent
+
+from agent.agent import run_agent_query
 
 app = FastAPI(
     title="Etrendo Agent",
@@ -20,11 +23,16 @@ def health_check():
 @app.post("/query")
 def query_agent(request: QueryRequest) -> dict:
     """Queries the agent and returns the response."""
-    # The ADK agent's chat method is the standard way to interact.
-    # We pass the query and can use the 'files' parameter for context if needed,
-    # though here we'll just pass the query.
-    response = root_agent.chat(request.query)
-    return {"response": response}
+    query_text = request.query
+    if request.asins:
+        query_text += f" (ASIN filter: {', '.join(request.asins)})"
+
+    try:
+        response = run_agent_query(query_text)
+        return {"response": response}
+    except Exception as exc:  # pragma: no cover - pass through as HTTP 500
+        logging.exception("Agent query failed")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 if __name__ == "__main__":
     import uvicorn

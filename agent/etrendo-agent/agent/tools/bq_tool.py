@@ -7,6 +7,9 @@ from agent.config import config
 logger = logging.getLogger(__name__)
 
 class BigQueryTool(BaseTool):
+    # Name is expected by ADK tooling when inspecting available tools.
+    name: str = "bigquery_tool"
+
     def __init__(self):
         try:
             self.project_id = config["bigquery"]["project_id"]
@@ -18,7 +21,7 @@ class BigQueryTool(BaseTool):
             logger.error(f"Failed to initialize BigQuery client: {e}")
             raise
 
-    def _execute_query(self, query: str) -> str:
+    def _execute_query(self, query: str, empty_message: Optional[str] = None) -> str:
         try:
             query_job = self.bq_client.query(query)
             results = query_job.result()
@@ -31,7 +34,11 @@ class BigQueryTool(BaseTool):
             for row in results:
                 row_values = [str(val) for val in row.values()]
                 data_rows.append(",".join(row_values))
-            
+
+            # If only headers exist, return a clear no-data message
+            if len(data_rows) == 1:
+                return empty_message or "No data found for the requested filters."
+
             return "\n".join(data_rows)
         except Exception as e:
             logger.error(f"BigQuery query failed: {e}")
@@ -63,7 +70,10 @@ class BigQueryTool(BaseTool):
                 AND asin IN (SELECT asin FROM relevant_asins)
             ORDER BY snapshot_date DESC, asin
         """
-        return self._execute_query(query)
+        return self._execute_query(
+            query,
+            empty_message=f"No recent data found for seller '{seller_name}' in the last 2 days.",
+        )
 
     def get_price_competitiveness(self, asin: str) -> str:
         """
@@ -82,7 +92,10 @@ class BigQueryTool(BaseTool):
                 AND asin = '{asin}'
             ORDER BY snapshot_date DESC
         """
-        return self._execute_query(query)
+        return self._execute_query(
+            query,
+            empty_message=f"No pricing data found for ASIN '{asin}' in the last 14 days.",
+        )
 
     def get_stock_status(self, seller_name: str) -> str:
         """
@@ -101,7 +114,10 @@ class BigQueryTool(BaseTool):
                 AND buybox_seller_name = '{seller_name}'
             ORDER BY snapshot_date DESC, asin
         """
-        return self._execute_query(query)
+        return self._execute_query(
+            query,
+            empty_message=f"No stock status found for seller '{seller_name}' in the last 2 days.",
+        )
 
     def get_buy_box_changes(self, seller_name: str) -> str:
         """
@@ -126,7 +142,10 @@ class BigQueryTool(BaseTool):
                 OR (t.buybox_seller_name != '{seller_name}' AND t.prev_day_buybox_seller = '{seller_name}')
             ORDER BY t.snapshot_date DESC, t.asin
         """
-        return self._execute_query(query)
+        return self._execute_query(
+            query,
+            empty_message=f"No Buy Box changes found for seller '{seller_name}' in the last 2 days.",
+        )
 
     def get_general_data(self) -> str:
         """
@@ -150,4 +169,7 @@ class BigQueryTool(BaseTool):
                 snapshot_date >= DATE_SUB(CURRENT_DATE(), INTERVAL 14 DAY)
             LIMIT 100
         """
-        return self._execute_query(query)
+        return self._execute_query(
+            query,
+            empty_message="No general data found in the last 14 days.",
+        )

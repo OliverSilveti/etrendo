@@ -5,45 +5,51 @@ This agent is designed to provide insights from the `etrendo-prd.amazon_gold.ama
 
 ## Project Structure
 
-*   `agent/`: Main application package.
-    *   `agent_app.py`: FastAPI application entry point.
-    *   `config.py`: Configuration loading.
-    *   `tools/`: Helper modules (e.g., BigQuery integration).
-*   `config.yaml`: Configuration settings (Project ID, Model Name, etc.).
-*   `prompts.yaml`: System prompts and templates for the LLM.
-*   `requirements.txt`: Python dependencies.
-*   `Dockerfile`: Container definition.
-*   `deploy_etrendo_agent.sh`: Deployment script.
+* `agent/`: Application package (ADK agent + optional FastAPI)
+  * `agent.py`: Defines the root `LlmAgent`, ADK `App`, and a simple runner helper.
+  * `app.py`: Optional FastAPI wrapper for HTTP access (uses the ADK runner).
+  * `config.py`: Configuration loading.
+  * `tools/`: Helper modules (BigQuery integration).
+* `config.yaml`: Configuration settings (Project ID, Model Name, etc.).
+* `prompts.yaml`: System prompts and templates for the LLM.
+* `requirements.txt`: Python dependencies.
+* `Dockerfile`: Container definition.
+* `deploy_etrendo_agent.sh`: Deployment script.
 
 ## Setup
 
-1.  **Install Dependencies:**
-    ```bash
-    pip install -r requirements.txt
-    ```
+1. **Install dependencies**
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-2.  **Configure Environment:**
-    The agent's configuration is managed in the `config.yaml` file.
-    Prompts are managed in `prompts.yaml`.
+2. **Configure environment**
+   Update `config.yaml` for project/dataset/table/model. Ensure Google auth is available (`gcloud auth application-default login` or `GOOGLE_APPLICATION_CREDENTIALS`).
+
+## Running Locally (ADK CLI)
+
+From `agent/etrendo-agent`:
+- Interactive CLI: `uv run adk run agent`
+- ADK Web UI: `uv run adk web` (select `agent`)
+
+## Running Locally (FastAPI, optional)
+
+Still from `agent/etrendo-agent`:
+```bash
+uvicorn agent.app:app --host 0.0.0.0 --port 8080
+```
+Then:
+- `GET /` health check
+- `POST /query` with JSON `{"query": "...", "asins": ["ASIN1", ...]}` (the `asins` list is optional)
 
 ## Deployment
 
-The agent is deployed as a serverless container on Cloud Run using a shell script.
-
-1.  **Run Deployment Script:**
-    ```bash
-    cd agent/etrendo-agent
-    ./deploy_etrendo_agent.sh
-    ```
-
-This will build the Docker image, push it to the Artifact Registry, and deploy the agent to Cloud Run.
-
-## Usage
-
-Once deployed, the agent can be queried via its Cloud Run endpoint.
-
--   **GET /**: Returns a health check message.
--   **POST /query**: Takes a JSON payload with a "query" field (and optional "asins" list) and returns a response from the agent.
+Cloud Run deployment via the provided script:
+```bash
+cd agent/etrendo-agent
+./deploy_etrendo_agent.sh
+```
+This builds the image, pushes to Artifact Registry, and deploys to Cloud Run.
 
 ## Core Questions & Capabilities
 
