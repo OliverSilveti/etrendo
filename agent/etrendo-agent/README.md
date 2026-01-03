@@ -42,6 +42,13 @@ Then:
 - `GET /` health check
 - `POST /query` with JSON `{"query": "...", "asins": ["ASIN1", ...]}` (the `asins` list is optional)
 
+## Example Queries
+- Daily pulse: "How am I doing today vs yesterday?" (uses `get_daily_pulse`)
+- Buy Box changes: "Which ASINs did seller 'Yoer' lose the Buy Box on in the last 2 days?" (uses `get_buy_box_changes`)
+- Price competitiveness: "Is my price competitive for ASIN B0FP2HTVYR?" (uses `get_price_competitiveness`)
+- Stock status: "Which products for seller 'MyStore' are low on stock in the last 2 days?" (uses `get_stock_status`)
+- General overview (fallback): "Give me a quick overview of recent activity." (uses `get_general_data`)
+
 ## Deployment
 
 Cloud Run deployment via the provided script:
