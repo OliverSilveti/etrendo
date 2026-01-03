@@ -3,3 +3,4 @@ uvicorn
 pydantic
 google-cloud-aiplatform
 google-cloud-bigquery
+pyyaml

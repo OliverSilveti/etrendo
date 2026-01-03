@@ -11,6 +11,10 @@ COPY requirements.txt .
 # Install any needed packages specified in requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Copy configuration files
+COPY config.yaml .
+COPY prompts.yaml .
+
 # Copy the rest of the application's code into the container
 COPY . .
 
@@ -18,4 +22,4 @@ COPY . .
 EXPOSE 8080
 
 # Run the application
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["uvicorn", "agent.agent_app:app", "--host", "0.0.0.0", "--port", "8080"]
