@@ -1,6 +1,6 @@
-fastapi
-uvicorn
 pydantic
-google-cloud-aiplatform
+google-cloud-aiplatform[adk]
 google-cloud-bigquery
 pyyaml
+fastapi
+uvicorn
