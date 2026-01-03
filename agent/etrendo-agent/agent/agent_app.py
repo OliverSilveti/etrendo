@@ -34,6 +34,7 @@ except Exception as e:
 class Query(BaseModel):
     query: str
     asins: Optional[List[str]] = None
+    seller_name: Optional[str] = None
 
 @app.get("/")
 def read_root():
@@ -44,7 +45,7 @@ def query_agent(query: Query):
     logger.info(f"Received query: {query.query}")
     
     # 1. Fetch Context from BigQuery using the tool
-    data_context = fetch_context(query.asins)
+    data_context = fetch_context(query.asins, query.seller_name)
     
     # 2. Construct Prompt using Template
     prompt = prompts["context_template"].format(

@@ -14,17 +14,17 @@ except Exception as e:
     logger.error(f"Failed to initialize BigQuery client: {e}")
     raise
 
-def fetch_context(asins: Optional[List[str]] = None) -> str:
+def fetch_context(asins: Optional[List[str]] = None, seller_name: Optional[str] = None) -> str:
     """
     Fetches recent data from BigQuery for context.
-    If ASINs are provided, filters by them. Otherwise, fetches top 10 rows.
+    If ASINs are provided, filters by them.
+    If seller_name is provided, fetches ASINs where this seller has won the Buy Box recently.
     """
     dataset_id = config["bigquery"]["dataset_id"]
     table_id = config["bigquery"]["table_id"]
     full_table_id = f"{PROJECT_ID}.{dataset_id}.{table_id}"
 
-    # Basic query to fetch last 7 days of data
-    query = f"""
+    base_query = f"""
         SELECT
             snapshot_date,
             asin,
@@ -38,14 +38,29 @@ def fetch_context(asins: Optional[List[str]] = None) -> str:
         FROM
             `{full_table_id}`
         WHERE
-            snapshot_date >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)
+            snapshot_date >= DATE_SUB(CURRENT_DATE(), INTERVAL 14 DAY)
     """
 
     if asins:
         formatted_asins = ", ".join([f"'{asin}'" for asin in asins])
-        query += f" AND asin IN ({formatted_asins})"
+        query = base_query + f" AND asin IN ({formatted_asins})"
+    elif seller_name:
+        # If seller_name is provided, we first find the ASINs relevant to this seller
+        # Then we fetch the full history for those ASINs to allow for comparison (Win/Loss analysis)
+        query = f"""
+            WITH relevant_asins AS (
+                SELECT DISTINCT asin
+                FROM `{full_table_id}`
+                WHERE 
+                    snapshot_date >= DATE_SUB(CURRENT_DATE(), INTERVAL 14 DAY)
+                    AND buybox_seller_name = '{seller_name}'
+            )
+            {base_query}
+            AND asin IN (SELECT asin FROM relevant_asins)
+        """
     else:
-        query += " LIMIT 50" # Limit to 50 rows if no specific ASINs to avoid huge context
+        query = base_query + " LIMIT 200" # Increased limit for general queries
+
 
     try:
         query_job = bq_client.query(query)

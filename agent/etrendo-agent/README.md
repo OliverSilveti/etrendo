@@ -44,3 +44,25 @@ Once deployed, the agent can be queried via its Cloud Run endpoint.
 
 -   **GET /**: Returns a health check message.
 -   **POST /query**: Takes a JSON payload with a "query" field (and optional "asins" list) and returns a response from the agent.
+
+## Core Questions & Capabilities
+
+This agent is optimized to answer the following types of questions for E-commerce Sellers:
+
+### 1. The "Daily Pulse" (Status Check)
+*   "How am I doing today vs yesterday?"
+*   "Which ASINs need my immediate attention today?"
+*   "Did I lose the Buy Box for any top products overnight?"
+
+### 2. Pricing Strategy
+*   "Is my price competitive for ASIN X?"
+*   "Are competitors undercutting me on my top selling items?"
+*   "Has the market price for this category dropped recently?"
+
+### 3. Stock & Availability
+*   "Which products are running low on stock?"
+*   "Did I lose the Buy Box due to stock issues?"
+
+### 4. Competition
+*   "Who is my main competitor for ASIN Y?"
+*   "Are there new sellers appearing on my listings?"
