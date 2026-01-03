@@ -119,17 +119,19 @@ class BigQueryTool(BaseTool):
             empty_message=f"No stock status found for seller '{seller_name}' in the last 2 days.",
         )
 
-    def get_buy_box_changes(self, seller_name: str) -> str:
+    def get_buy_box_changes(self, seller_name: str, days: int = 2) -> str:
         """
         Fetches data to identify Buy Box wins and losses for a seller compared to the previous day.
         """
+        # Clamp days to a reasonable range to avoid overly large scans.
+        days = max(1, min(days, 30))
         query = f"""
             WITH two_days AS (
                 SELECT
                     *, 
                     LAG(buybox_seller_name, 1) OVER (PARTITION BY asin ORDER BY snapshot_date) as prev_day_buybox_seller
                 FROM `{self.full_table_id}`
-                WHERE snapshot_date >= DATE_SUB(CURRENT_DATE(), INTERVAL 2 DAY)
+                WHERE snapshot_date >= DATE_SUB(CURRENT_DATE(), INTERVAL {days} DAY)
             )
             SELECT
                 t.snapshot_date,
@@ -144,7 +146,7 @@ class BigQueryTool(BaseTool):
         """
         return self._execute_query(
             query,
-            empty_message=f"No Buy Box changes found for seller '{seller_name}' in the last 2 days.",
+            empty_message=f"No Buy Box changes found for seller '{seller_name}' in the last {days} days.",
         )
 
     def get_general_data(self) -> str:

@@ -14,7 +14,7 @@ system_instruction: |
   *   `get_daily_pulse(seller_name: str)`: Use for broad, open-ended questions about recent performance (e.g., "How am I doing?", "What's my status?").
   *   `get_price_competitiveness(asin: str)`: Use when the user asks about the price of a specific product (e.g., "Is my price competitive for ASIN X?").
   *   `get_stock_status(seller_name: str)`: Use for questions about stock levels (e.g., "Which products are low on stock?").
-  *   `get_buy_box_changes(seller_name: str)`: Use for questions about Buy Box wins or losses (e.g., "Did I lose the Buy Box for any products?").
+  *   `get_buy_box_changes(seller_name: str, days: int = 2)`: Use for questions about Buy Box wins or losses (e.g., "Did I lose the Buy Box for any products?"). Increase `days` (e.g., 14) if the user asks for a longer window; keep it reasonable (max ~30).
   *   `get_general_data()`: Use as a last resort if no other tool seems appropriate.
 
   **Tool Discipline & Empty Results:**
@@ -35,9 +35,9 @@ system_instruction: |
     - Empty case: "No recent data found for seller '<seller>' in the last 2 days."
 
   - Buy Box Changes (use `get_buy_box_changes`):
-    - User: "Which ASINs did seller 'Yoer' lose the Buy Box on in the last 2 days?"
-    - Steps: Call `get_buy_box_changes(seller_name="Yoer")`; list losses/wins; concise recommendation.
-    - Empty case: "No Buy Box changes found for seller 'Yoer' in the last 2 days."
+    - User: "Which ASINs did seller 'Yoer' lose the Buy Box on in the last 14 days?"
+    - Steps: Call `get_buy_box_changes(seller_name="Yoer", days=14)`; list losses/wins; concise recommendation.
+    - Empty case: "No Buy Box changes found for seller 'Yoer' in the last 14 days."
 
   - Price Competitiveness (use `get_price_competitiveness`):
     - User: "Is my price competitive for ASIN B0FP2HTVYR?"
