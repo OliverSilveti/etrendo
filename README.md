@@ -5,7 +5,7 @@ Etrendo is an AI assistant for e-commerce teams that surfaces pricing dynamics, 
 Core pieces:
 - Ingestion: Cloud Run jobs (marketplace1/2) pulling listings and product details, scheduled via Cloud Scheduler, storing raw data in GCS (daily runs; near-real refresh possible).
 - Analytics: SQL models in BigQuery (bronze->silver) to flatten, cleanse, and snapshot product/pricing data for stable querying.
-- Agent: FastAPI + Gemini backend that uses the curated tables to answer pricing and competitive-intelligence questions.
+- Agent: Google Agent Development Kit (ADK) + optional FastAPI wrapper that uses the curated tables to answer pricing and competitive-intelligence questions.
 - Infra: Terraform for Cloud Run jobs, Scheduler triggers, Artifact Registry, Secret Manager, and GCS buckets.
 
 Outcome examples: track buy-box shifts, detect competitor repricing and stock changes, spot assortment gaps, summarize reviews, and monitor category-level price dispersion over time.
@@ -22,8 +22,8 @@ Make sure you have the following tools installed on your local machine:
 - [Pip](https://pip.pypa.io/en/stable/installation/)
 - [Node.js](https://nodejs.org/en/download/) (for the frontend, optional for now)
 - [gcloud CLI](https://cloud.google.com/sdk/docs/install)
-- [Terraform](https://learn.hashicorp.com/tutorials/terraform/install-cli)
- - [Terraform](https://learn.hashicorp.com/tutorials/terraform/install-cli) (v1.0+ recommended)
+- [Terraform](https://learn.hashicorp.com/tutorials/terraform/install-cli) (v1.0+ recommended)
+- [Docker](https://docs.docker.com/get-docker/) (for container builds)
 
     Note: This project uses Terraform to provision GCP resources under `infra/terraform` (Cloud Run job, Cloud Scheduler, GCS, Secret Manager, Artifact Registry). See `infra/terraform/README.md` for detailed install and safe-run instructions.
 
@@ -61,14 +61,28 @@ The project uses a combination of environment variables and configuration files.
 
     **Note:** Do not commit the `.env` file to version control.
 
+3.  **Agent (ADK) configuration:**
+    The agent reads from BigQuery and calls Vertex AI. Adjust `agent/etrendo-agent/config.yaml` if you need a different dataset/table or Vertex project/region. Defaults point to `etrendo-prd.amazon_gold.amazon_coffee_machines_snapshot_category_daily` and `gemini-2.0-flash-exp`.
+
 ## Usage
 
 Each service can be run individually. Refer to the `README.md` file in each service's directory for specific instructions.
 
--   `agent`: The AI agent API.
+-   `agent`: ADK-based AI agent + optional FastAPI wrapper (see quick start below).
 -   `context_api`: The API for fetching context from BigQuery.
 -   `ingestion`: The data ingestion jobs.
 -   `infra/terraform`: The infrastructure as code.
+
+## Agent Development Kit (ADK) quick start
+
+The AI agent lives in `agent/etrendo-agent` and uses the Google ADK with Vertex AI and BigQuery.
+
+- Install deps: `cd agent/etrendo-agent && pip install -r requirements.txt` (includes `google-cloud-aiplatform[adk]` which provides the `adk` CLI).
+- Run locally:
+  - ADK CLI: `adk run agent`
+  - ADK Web UI: `adk web` and select `agent`
+  - FastAPI wrapper: `uvicorn agent.app:app --host 0.0.0.0 --port 8080` (then `POST /query` with `{"query": "...", "asins": [...]}`).
+- Deploy to Cloud Run: `./deploy_etrendo_agent.sh` (builds, pushes to Artifact Registry, and deploys). Requires `gcloud auth application-default login` and Docker.
 
 ## Deploying (Terraform / GCP)
 
@@ -83,7 +97,7 @@ If you prefer, run the infra steps from CI with a dedicated service account and 
 
 - **/ingestion**: Data ingestion pipelines (Cloud Functions/Run).
 - **/analytics**: SQL transformation logic (dbt or Dataform) for the medallion architecture.
-- **/agent**: The core AI agent logic and serving API (FastAPI/Gemini).
+- **/agent**: ADK-based AI agent plus optional FastAPI wrapper (`agent/etrendo-agent`).
 - **/context_api**: An API to fetch real-time context from BigQuery for the agent.
 - **/notebooks**: Jupyter notebooks for exploration and prototyping.
 - **/orchestration**: Infrastructure-as-code for orchestration (Cloud Scheduler, Workflows).
