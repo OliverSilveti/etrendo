@@ -1,6 +1,6 @@
 
-# Use an official Python runtime as a parent image
-FROM python:3.9-slim
+# Use a Python runtime that supports the code (requires 3.10+ for | unions)
+FROM python:3.11-slim
 
 # Set the working directory in the container
 WORKDIR /app

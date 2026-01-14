@@ -62,7 +62,7 @@ def run_agent_query(query: str) -> str:
         user_id=_USER_ID,
         session_id=session_id,
         new_message=types.Content(
-            role="user", parts=[types.Part.from_text(query)]
+            role="user", parts=[types.Part.from_text(text=query)]
         ),
     )
 
