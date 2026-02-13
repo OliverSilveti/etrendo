@@ -14,6 +14,7 @@ app = FastAPI(
 class QueryRequest(BaseModel):
     query: str
     asins: list[str] | None = None
+    session_id: str | None = None
 
 @app.get("/")
 def health_check():
@@ -28,8 +29,8 @@ def query_agent(request: QueryRequest) -> dict:
         query_text += f" (ASIN filter: {', '.join(request.asins)})"
 
     try:
-        response = run_agent_query(query_text)
-        return {"response": response}
+        response, session_id = run_agent_query(query_text, request.session_id)
+        return {"response": response, "session_id": session_id}
     except Exception as exc:  # pragma: no cover - pass through as HTTP 500
         logging.exception("Agent query failed")
         raise HTTPException(status_code=500, detail=str(exc)) from exc

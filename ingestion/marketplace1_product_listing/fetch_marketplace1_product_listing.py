@@ -16,6 +16,10 @@ from serpapi import GoogleSearch
 
 # --- Configuration ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+# Fail fast: a single attempt per page, then skip.
+MAX_RETRIES = 1
+# Kept for future tuning; with MAX_RETRIES=1 this has no effect on a single attempt.
+RETRY_BASE_SECONDS = 1
 
 # Load configuration from YAML files
 try:
@@ -84,10 +88,20 @@ def fetch_all_product_pages(config: dict) -> list:
     else:
         effective_max_pages = max_pages
 
+    start_page = config.get("start_page", 1)
+    try:
+        start_page = int(start_page)
+    except (TypeError, ValueError):
+        start_page = 1
+    if start_page < 1:
+        start_page = 1
+
     all_pages = []
-    page_num = 1
+    page_num = start_page
+    pages_fetched = 0
     extracted_at = datetime.now(timezone.utc).isoformat()
     total_products = 0
+    category_label = config["category_label"]
 
     # Initial parameters for the first page
     params = {
@@ -97,7 +111,7 @@ def fetch_all_product_pages(config: dict) -> list:
         "delivery_zip": config["delivery_zip"],
         "node": node,
         "s": config["sort"],
-        "page": 1,
+        "page": page_num,
         "api_key": api_key
     }
 
@@ -105,15 +119,38 @@ def fetch_all_product_pages(config: dict) -> list:
 
     while True:
         logging.info(f"\n🌍 Fetching page {page_num}...")
-        results = search.get_dict()
+        results = None
+        error_msg = None
+
+        # Single attempt per page; skip on error.
+        for attempt in range(1, MAX_RETRIES + 1):
+            try:
+                # serpapi client version in use does not accept a timeout kwarg
+                results = search.get_dict()
+                error_msg = results.get("error")
+            except Exception as e:
+                error_msg = str(e)
+
+            if not error_msg:
+                break
+
+            wait_time = RETRY_BASE_SECONDS * attempt
+            logging.warning(f"SerpAPI error on page {page_num} (attempt {attempt}/{MAX_RETRIES}): {error_msg}.")
+
+        if error_msg:
+            logging.error(f"Skipping page {page_num}: unable to fetch after {MAX_RETRIES} attempt(s). Error: {error_msg}")
+            pages_fetched += 1
+            if effective_max_pages and pages_fetched >= effective_max_pages:
+                logging.info(f"⏹️ Reached page limit of {effective_max_pages} (including skipped pages).")
+                break
+            page_num += 1
+            search.params_dict["page"] = page_num
+            continue
 
         # On the first page, log the total number of pages available from the API
         if page_num == 1 and "total_pages" in results.get("serpapi_pagination", {}):
             total_pages = results["serpapi_pagination"]["total_pages"]
             logging.info(f"ℹ️ API reports a total of {total_pages} pages available for this query.")
-
-        if "error" in results:
-            sys.exit(f"❌ API Error: {results['error']}")
 
         # add sponsorship flag + timestamp
         for p in results.get("organic_results", []):
@@ -126,7 +163,8 @@ def fetch_all_product_pages(config: dict) -> list:
         total_products += num_found
         logging.info(f"📦 Found {num_found} products on page {page_num}")
 
-        if effective_max_pages and page_num >= effective_max_pages:
+        pages_fetched += 1
+        if effective_max_pages and pages_fetched >= effective_max_pages:
             logging.info(f"⏹️ Reached page limit of {effective_max_pages}.")
             break
 
@@ -153,7 +191,8 @@ def fetch_all_product_pages(config: dict) -> list:
         search.params_dict["page"] = page_num
 
         # Polite wait to avoid getting blocked
-        wait_time = random.uniform(1, 3)
+        # Keep per-page delay low to avoid timeouts; tune up if SerpAPI starts throttling.
+        wait_time = random.uniform(0.2, 0.6)
         logging.info(f"⏳ Waiting {wait_time:.1f}s before next page...")
         time.sleep(wait_time)
 
@@ -206,6 +245,8 @@ def save_to_gcs(df: pd.DataFrame, bucket_name: str, destination_blob_name: str):
     if df.empty:
         logging.warning("DataFrame is empty, skipping upload to GCS.")
         return
+    # Replace NaN/NaT with None so the JSON is strict (BigQuery rejects bare NaN/Infinity).
+    df = df.where(pd.notnull(df), None)
 
     storage_client = storage.Client()
     bucket = storage_client.bucket(bucket_name)
@@ -215,7 +256,8 @@ def save_to_gcs(df: pd.DataFrame, bucket_name: str, destination_blob_name: str):
     json_data = df.to_json(orient="records", 
                            #indent=2,
                            lines=True,
-                           force_ascii=False)
+                           force_ascii=False,
+                           allow_nan=False)
     blob.upload_from_string(json_data, content_type='application/json')
     logging.info(f"Data saved to gs://{bucket_name}/{destination_blob_name}")
 
@@ -249,6 +291,10 @@ def main(args):
     if args.node:
         CRAWL_CONFIG["node"] = args.node
         logging.info(f"Overriding node with command-line value: {args.node}")
+
+    if args.start_page:
+        CRAWL_CONFIG["start_page"] = args.start_page
+        logging.info(f"Starting from page {args.start_page}.")
 
 
     # 1. Fetch data from SerpAPI
@@ -291,6 +337,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("source_name", type=str, help="The name of the source to process from sources.yaml.")
     parser.add_argument("--max_pages", type=int, help="Maximum number of pages to fetch. Overrides the source config. 0 means no limit.")
     parser.add_argument("--node", type=str, help="Amazon category node to scrape. Overrides the source config.")
+    parser.add_argument("--start_page", type=int, help="Start fetching from this page number (default: 1).")
     return parser
 
 

@@ -50,14 +50,22 @@ _runner = Runner(app=app, session_service=_session_service)
 _USER_ID = "local-user"
 
 
-def run_agent_query(query: str) -> str:
-    """Runs a single-turn query through the ADK runner and returns text."""
-    session_id = str(uuid.uuid4())
-    _session_service.create_session_sync(
-        app_name=app.name,
-        user_id=_USER_ID,
-        session_id=session_id,
-    )
+def run_agent_query(query: str, session_id: str | None = None) -> tuple[str, str]:
+    """Runs a single-turn query through the ADK runner and returns text + session_id."""
+    if not session_id:
+        session_id = str(uuid.uuid4())
+
+    # Ensure session exists (try to create, ignore if already exists)
+    try:
+        _session_service.create_session_sync(
+            app_name=app.name,
+            user_id=_USER_ID,
+            session_id=session_id,
+        )
+    except Exception:
+        # Session already exists or another issue; assuming existence for now.
+        pass
+
     events = _runner.run(
         user_id=_USER_ID,
         session_id=session_id,
@@ -74,4 +82,5 @@ def run_agent_query(query: str) -> str:
             text_parts = [part.text for part in event.content.parts if part.text]
             if text_parts:
                 final_text = "".join(text_parts)
-    return final_text or "No response generated."
+    
+    return final_text or "No response generated.", session_id

@@ -24,12 +24,6 @@ resource "google_service_account" "job_runner_marketplace2" {
   display_name = "Service Account for Marketplace2 Ingestion Job"
 }
 
-resource "google_service_account" "agent_runner" {
-  account_id   = "etrendo-agent-sa"
-  project      = local.project_id
-  display_name = "Service Account for Etrendo Agent"
-}
-
 resource "google_secret_manager_secret" "serpapi_key" {
   secret_id = "${var.service_name}-serpapi-key"
   project   = local.project_id
@@ -64,17 +58,6 @@ resource "google_storage_bucket_iam_member" "gcs_writer_marketplace2" {
   member = "serviceAccount:${google_service_account.job_runner_marketplace2.email}"
 }
 
-resource "google_project_iam_member" "agent_bq_viewer" {
-  project = local.project_id
-  role    = "roles/bigquery.dataViewer"
-  member  = "serviceAccount:${google_service_account.agent_runner.email}"
-}
-
-resource "google_project_iam_member" "agent_aiplatform_user" {
-  project = local.project_id
-  role    = "roles/aiplatform.user"
-  member  = "serviceAccount:${google_service_account.agent_runner.email}"
-}
 
 resource "google_artifact_registry_repository" "repo" {
   location      = var.region

@@ -6,4 +6,4 @@ bigquery:
 vertex_ai:
   project_id: "etrendo-prd"
   location: "us-central1"
-  model_name: "gemini-2.0-flash-exp"
+  model_name: "gemini-2.0-flash"
