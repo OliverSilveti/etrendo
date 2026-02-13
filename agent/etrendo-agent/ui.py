@@ -9,10 +9,16 @@ sys.path.append(os.getcwd())
 
 from agent.agent import run_agent_query
 
-st.set_page_config(page_title="Etrendo Revenue Agent", page_icon="🛒")
+st.set_page_config(page_title="Etrendo E-commerce Agent", page_icon="🛒")
 
-st.title("Etrendo Revenue Agent 🛒")
-st.markdown("Ask about your sales, pricing, and buy box status.")
+st.title("Etrendo E-commerce Agent 🛒")
+st.markdown("Your AI consultant for Amazon pricing, stock, and competitive analysis.")
+
+# Sidebar for Context
+with st.sidebar:
+    st.header("Context")
+    default_seller_name = st.text_input("My Seller Name (Default)", value="AeroPress", help="This name will be used when you say 'I', 'me', or 'my'.")
+    st.caption("Enter your seller name here so you don't have to type it every time.")
 
 # Function to simulate streaming response
 def stream_data(text):
@@ -29,9 +35,15 @@ if "agent_session_id" not in st.session_state:
     st.session_state.agent_session_id = None
 
 # Display chat messages from history on app rerun
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
+if not st.session_state.messages:
+    # Default welcome message if history is empty
+    welcome_msg = "👋 Hi! I'm your Etrendo Agent. \n\nPlease ensure your **Seller Name** is set correctly in the sidebar. \n\nI can help you analyze your portfolio performance, competitors, and pricing opportunities. Try asking: *'How are my coffee machines doing?'*"
+    with st.chat_message("assistant"):
+        st.markdown(welcome_msg)
+else:
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
 
 # Accept user input
 if prompt := st.chat_input("How is my coffee machine sales?"):
@@ -41,6 +53,9 @@ if prompt := st.chat_input("How is my coffee machine sales?"):
     with st.chat_message("user"):
         st.markdown(prompt)
 
+    # Contextualize Prompt
+    context_prompt = f"Context: User's Default Seller Name is '{default_seller_name}'. User Question: {prompt}"
+
     # Display assistant response in chat message container
     with st.chat_message("assistant"):
         response = None
@@ -48,7 +63,7 @@ if prompt := st.chat_input("How is my coffee machine sales?"):
         with st.status("Analyzing market data...", expanded=True) as status:
             try:
                 # Call the agent with history (session_id)
-                response, session_id, logs = run_agent_query(prompt, st.session_state.agent_session_id)
+                response, session_id, logs = run_agent_query(context_prompt, st.session_state.agent_session_id)
                 
                 # Update session ID (in case it was None or changed)
                 st.session_state.agent_session_id = session_id

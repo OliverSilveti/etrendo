@@ -31,6 +31,7 @@ TOOLS = [
     FunctionTool(_bq_tool.get_stock_status),
     FunctionTool(_bq_tool.get_buy_box_changes),
     FunctionTool(_bq_tool.get_general_data),
+    FunctionTool(_bq_tool.analyze_product_performance),
 ]
 
 # Create the agent

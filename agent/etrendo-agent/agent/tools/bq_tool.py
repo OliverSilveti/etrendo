@@ -55,7 +55,7 @@ class BigQueryTool(BaseTool):
                 FROM `{self.full_table_id}`
                 WHERE 
                     snapshot_date >= DATE_SUB(CURRENT_DATE(), INTERVAL 2 DAY)
-                    AND buybox_seller_name = '{seller_name}'
+                    AND LOWER(buybox_seller_name) = LOWER('{seller_name}')
             )
             SELECT
                 snapshot_date,
@@ -79,6 +79,8 @@ class BigQueryTool(BaseTool):
         """
         Fetches pricing data for a specific ASIN over the last 14 days to assess price competitiveness.
         """
+        # Ensure ASIN is uppercase for consistency
+        asin = asin.upper()
         query = f"""
             SELECT
                 snapshot_date,
@@ -111,7 +113,7 @@ class BigQueryTool(BaseTool):
                 `{self.full_table_id}`
             WHERE
                 snapshot_date >= DATE_SUB(CURRENT_DATE(), INTERVAL 2 DAY)
-                AND buybox_seller_name = '{seller_name}'
+                AND LOWER(buybox_seller_name) = LOWER('{seller_name}')
             ORDER BY snapshot_date DESC, asin
         """
         return self._execute_query(
@@ -140,8 +142,8 @@ class BigQueryTool(BaseTool):
                 t.prev_day_buybox_seller
             FROM two_days t
             WHERE 
-                (t.buybox_seller_name = '{seller_name}' AND t.prev_day_buybox_seller != '{seller_name}')
-                OR (t.buybox_seller_name != '{seller_name}' AND t.prev_day_buybox_seller = '{seller_name}')
+                (LOWER(t.buybox_seller_name) = LOWER('{seller_name}') AND LOWER(t.prev_day_buybox_seller) != LOWER('{seller_name}'))
+                OR (LOWER(t.buybox_seller_name) != LOWER('{seller_name}') AND LOWER(t.prev_day_buybox_seller) = LOWER('{seller_name}'))
             ORDER BY t.snapshot_date DESC, t.asin
         """
         return self._execute_query(
@@ -175,3 +177,102 @@ class BigQueryTool(BaseTool):
             query,
             empty_message="No general data found in the last 14 days.",
         )
+
+    def analyze_product_performance(self, asin: str, seller_name: str) -> str:
+        """
+        Analyzes a product's performance to provide a strategic recommendation.
+        Calculates price gap against the Buy Box and headroom for winning products.
+        
+        Args:
+            asin: The Amazon Standard Identification Number.
+            seller_name: The name of the seller requesting the analysis.
+        """
+        # Using specific logic to join offers summary with price listing
+        asin = asin.upper()
+        query = f"""
+            WITH my_price AS (
+              SELECT asin, extracted_at, MIN(total_price) AS my_price
+              FROM
+                `etrendo-prd.amazon_silver_stg.amazon_coffee_machines_price_listing_flat`
+              WHERE LOWER(seller_name) = LOWER('{seller_name}')
+              AND DATE(extracted_at) >= DATE_SUB(CURRENT_DATE(), INTERVAL 14 DAY)
+              GROUP BY asin, extracted_at
+            )
+            SELECT
+              s.asin,
+              s.extracted_at,
+              s.buybox_seller_name AS buybox_seller_id,
+              s.pdp_total_price AS buybox_price,
+              s.min_total_price,
+              s.buybox_is_amazon,
+              m.my_price,
+
+              -- Derived fields
+              (m.my_price - s.pdp_total_price) AS price_gap,
+              (m.my_price - s.min_total_price) AS headroom,
+              (LOWER(s.buybox_seller_name) = LOWER('{seller_name}') OR s.buybox_seller_name IS NULL) AS am_i_buybox
+
+            FROM `etrendo-prd.amazon_gold.amazon_coffee_machines_snapshot_category_daily` s
+            LEFT JOIN my_price m
+              ON s.asin = m.asin 
+              AND DATE(s.extracted_at) = DATE(m.extracted_at)
+            WHERE s.asin = '{asin}'
+            AND DATE(s.extracted_at) >= DATE_SUB(CURRENT_DATE(), INTERVAL 14 DAY)
+            ORDER BY s.extracted_at DESC
+            LIMIT 100
+        """
+        
+        # Execute query
+        try:
+            query_job = self.bq_client.query(query)
+            results = list(query_job.result())
+            
+            if not results:
+                return f"No recent data found for ASIN {asin} (Seller: {seller_name})."
+                
+            row = results[0]
+            
+            # Extract values
+            am_i_buybox = row.get('am_i_buybox', False)
+            price_gap = row.get('price_gap')
+            headroom = row.get('headroom')
+            buybox_is_amazon = row.get('buybox_is_amazon')
+            buybox_price = row.get('buybox_price')
+            my_price = row.get('my_price')
+            
+            status = "WINNING" if am_i_buybox else "LOSING"
+            reason = ""
+            action = ""
+
+            # --- Business Logic Rules ---
+            
+            if status == "LOSING":
+                if price_gap is None:
+                     reason = "Your price data is missing for this date."
+                     action = "Check if your listing is active."
+                elif price_gap > 0.10:
+                    reason = f"You are losing because you are overpriced by €{price_gap:.2f}."
+                    action = f"Decrease price to €{buybox_price:.2f} to compete."
+                elif abs(price_gap) <= 0.05:
+                    reason = "Your price is aligned with the Buy Box, but you are not winning."
+                    action = "Check non-price factors: Shipping speed (FBA vs FBM), Seller Rating, or Stock location."
+                elif price_gap < -0.05:
+                    reason = f"You are cheaper by €{abs(price_gap):.2f}, but still losing."
+                    action = "Do NOT lower price further. Improve delivery speed or seller metrics."
+                
+                if buybox_is_amazon:
+                    reason += " (Note: Amazon holds the Buy Box, making it harder to win)."
+
+            else: # WINNING
+                if headroom and headroom >= 0.50:
+                    reason = f"You are winning, and you have €{headroom:.2f} headroom above the minimum price."
+                    action = "Test a small price increase to improve margins."
+                else:
+                    reason = "You are winning the Buy Box."
+                    action = "Maintain current strategy. No price action required."
+
+            return f"**Analysis for {asin}**\n\n**Status:** {status}\n**Reason:** {reason}\n**Recommendation:** {action}\n\n*Data Context: Buy Box: €{buybox_price}, Your Price: €{my_price}*"
+
+        except Exception as e:
+            logger.error(f"Analysis failed: {e}")
+            return f"Error analyzing product: {e}"
