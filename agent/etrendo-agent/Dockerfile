@@ -18,8 +18,13 @@ COPY prompts.yaml .
 # Copy the rest of the application's code into the container
 COPY . .
 
+# Configure Environment Variables
+ENV GOOGLE_CLOUD_PROJECT=etrendo-prd
+ENV GOOGLE_CLOUD_LOCATION=us-central1
+ENV GOOGLE_GENAI_USE_VERTEXAI=True
+
 # Expose the port the app runs on
 EXPOSE 8080
 
 # Run the application
-CMD ["python", "-m", "agent.app"]
+CMD ["streamlit", "run", "ui.py", "--server.port", "8080", "--server.address", "0.0.0.0"]

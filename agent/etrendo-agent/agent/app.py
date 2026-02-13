@@ -29,7 +29,7 @@ def query_agent(request: QueryRequest) -> dict:
         query_text += f" (ASIN filter: {', '.join(request.asins)})"
 
     try:
-        response, session_id = run_agent_query(query_text, request.session_id)
+        response, session_id, logs = run_agent_query(query_text, request.session_id)
         return {"response": response, "session_id": session_id}
     except Exception as exc:  # pragma: no cover - pass through as HTTP 500
         logging.exception("Agent query failed")

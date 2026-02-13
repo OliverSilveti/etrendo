@@ -1,7 +1,8 @@
 
 import uuid
-
+import os
 import vertexai
+
 from google.adk.agents import LlmAgent
 from google.adk.apps import App
 from google.adk.runners import Runner
@@ -50,8 +51,10 @@ _runner = Runner(app=app, session_service=_session_service)
 _USER_ID = "local-user"
 
 
-def run_agent_query(query: str, session_id: str | None = None) -> tuple[str, str]:
-    """Runs a single-turn query through the ADK runner and returns text + session_id."""
+def run_agent_query(query: str, session_id: str | None = None) -> tuple[str, str, list[str]]:
+    """Runs a single-turn query through the ADK runner and returns text + session_id + logs."""
+    logs = []
+    
     if not session_id:
         session_id = str(uuid.uuid4())
 
@@ -66,21 +69,28 @@ def run_agent_query(query: str, session_id: str | None = None) -> tuple[str, str
         # Session already exists or another issue; assuming existence for now.
         pass
 
-    events = _runner.run(
-        user_id=_USER_ID,
-        session_id=session_id,
-        new_message=types.Content(
-            role="user", parts=[types.Part.from_text(text=query)]
-        ),
-    )
+    try:
+        events = _runner.run(
+            user_id=_USER_ID,
+            session_id=session_id,
+            new_message=types.Content(
+                role="user", parts=[types.Part.from_text(text=query)]
+            ),
+        )
 
-    final_text: str | None = None
-    for event in events:
-        if event.author == "user":
-            continue
-        if event.is_final_response() and event.content and event.content.parts:
-            text_parts = [part.text for part in event.content.parts if part.text]
-            if text_parts:
-                final_text = "".join(text_parts)
-    
-    return final_text or "No response generated.", session_id
+        logs.append(f"DEBUG: Processing query: {query}")
+        final_text: str | None = None
+        for event in events:
+            logs.append(f"DEBUG Event: {event}")
+            if event.author == "user":
+                continue
+            if event.is_final_response() and event.content and event.content.parts:
+                text_parts = [part.text for part in event.content.parts if part.text]
+                if text_parts:
+                    final_text = "".join(text_parts)
+        
+        logs.append(f"DEBUG Final Text: {final_text}")
+        return final_text or "No response generated.", session_id, logs
+    except Exception as e:
+        logs.append(f"ERROR: {e}")
+        return "An error occurred.", session_id, logs
