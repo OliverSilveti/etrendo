@@ -1,0 +1,7 @@
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+    from agent.agent import root_agent; print('Import successful')
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/oliversanchez/Documents/repos/etrendo/agent/etrendo-agent/agent/agent.py", line 4, in <module>
+    import vertexai
+ModuleNotFoundError: No module named 'vertexai'

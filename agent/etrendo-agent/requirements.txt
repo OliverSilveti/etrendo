@@ -1,6 +1,7 @@
 pydantic
 google-cloud-aiplatform[adk]
 google-cloud-bigquery
+google-genai>=0.3.0
 pyyaml
 fastapi
 uvicorn
