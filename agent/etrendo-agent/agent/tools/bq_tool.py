@@ -323,7 +323,7 @@ class BigQueryTool(BaseTool):
             my_portfolio AS (
               SELECT 
                 *,
-                (LOWER(buybox_seller_name) = LOWER('{seller_name}')) as is_winning,
+                COALESCE(LOWER(buybox_seller_name) = LOWER('{seller_name}'), FALSE) as is_winning,
                 (LOWER(prev_winner) = LOWER('{seller_name}') AND LOWER(buybox_seller_name) != LOWER('{seller_name}')) as just_lost
               FROM latest_snapshots
               WHERE recency_rank = 1  -- Only the latest status for each ASIN
@@ -387,12 +387,12 @@ class BigQueryTool(BaseTool):
 
     def get_competitor_landscape(self, seller_name: str, asins: Optional[List[str]] = None) -> str:
         """
-        Identifies active rivals (Buy Box winners) and silent threats (listed sellers) 
-        for the given seller's products.
+        Analyzes the competitive landscape for specific products.
+        Answers: "Who owns it now?", "Who has been competitive?", and provides pricing insights.
         
         Args:
             seller_name: The name of the seller (e.g. 'AeroPress').
-            asins: Optional list of ASINs to focus on. If empty, analyzes entire portfolio.
+            asins: Optional list of ASINs to focus on.
         """
         # Format ASIN filter
         asin_filter = ""
@@ -400,47 +400,50 @@ class BigQueryTool(BaseTool):
             formatted_asins = ", ".join([f"'{a.upper()}'" for a in asins])
             asin_filter = f"AND asin IN ({formatted_asins})"
             
-        # SQL 1: Find who is winning Buy Box on our products (Rivals)
-        rivals_query = f"""
+        # SQL 1: "Who Owns It Now?" (Latest Snapshot Only)
+        current_owners_query = f"""
+            WITH latest_date AS (
+                SELECT MAX(snapshot_date) as max_date FROM `{self.full_table_id}`
+            )
             SELECT 
-                buybox_seller_name as competitor,
-                COUNT(*) as win_count,
-                AVG(pdp_total_price) as avg_price
+                buybox_seller_name as current_owner,
+                COUNT(DISTINCT asin) as products_won_today,
+                AVG(pdp_total_price) as current_avg_price
             FROM `{self.full_table_id}`
-            WHERE LOWER(buybox_seller_name) != LOWER('{seller_name}')
-            AND snapshot_date >= DATE_SUB(CURRENT_DATE(), INTERVAL 14 DAY)
+            WHERE snapshot_date = (SELECT max_date FROM latest_date)
+            AND LOWER(buybox_seller_name) != LOWER('{seller_name}')
             {asin_filter}
             GROUP BY 1
             ORDER BY 2 DESC
-            LIMIT 20
+            LIMIT 10
         """
         
-        # SQL 2: Find who else is listed on our products (Shadow Competitors)
-        shadow_query = f"""
+        # SQL 2: "Who Has Been Competitive?" (Last 14 Days History)
+        competitive_history_query = f"""
             SELECT 
-                seller_name as competitor,
-                COUNT(*) as listing_presence,
-                MIN(total_price) as min_offered_price
-            FROM `etrendo-prd.amazon_silver_stg.amazon_coffee_machines_price_listing_flat`
-            WHERE LOWER(seller_name) != LOWER('{seller_name}')
-            AND DATE(extracted_at) >= DATE_SUB(CURRENT_DATE(), INTERVAL 14 DAY)
+                buybox_seller_name as historical_competitor,
+                COUNT(*) as days_won_buybox,
+                AVG(pdp_total_price) as avg_winning_price
+            FROM `{self.full_table_id}`
+            WHERE snapshot_date >= DATE_SUB(CURRENT_DATE(), INTERVAL 14 DAY)
+            AND LOWER(buybox_seller_name) != LOWER('{seller_name}')
             {asin_filter}
             GROUP BY 1
             ORDER BY 2 DESC
-            LIMIT 20
+            LIMIT 10
         """
         
         try:
-            rivals_data = self._execute_query(rivals_query)
-            shadow_data = self._execute_query(shadow_query)
+            current_owners = self._execute_query(current_owners_query)
+            history = self._execute_query(competitive_history_query)
             
             return (
                 f"### Competitor Analysis for {seller_name}\n\n"
-                f"**1. Active Rivals (Holding the Buy Box):**\n"
-                f"{rivals_data}\n\n"
-                f"**2. Shadow Competitors (Listed behind the scenes):**\n"
-                f"{shadow_data}\n\n"
-                f"**Intelligence Note:** Rivals are actively taking sales. Shadow competitors are threats if they lower prices or if you go out of stock."
+                f"**1. Who Owns It Now? (Today's Leaders):**\n"
+                f"{current_owners}\n\n"
+                f"**2. Who Has Been Competitive? (Last 14 Days):**\n"
+                f"{history}\n\n"
+                f"**Strategic Insight:** Compare 'Current Avg Price' vs. 'Avg Winning Price'. If current owners are priced lower than the historical average, a price war may be active."
             )
         except Exception as e:
             logger.error(f"Competitor analysis failed: {e}")
